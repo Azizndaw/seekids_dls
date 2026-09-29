@@ -1,0 +1,36 @@
+        const recommendations = [
+            "• Renforcement des prérequis par des séances de soutien ciblé.",
+            "• Mise en place d'un planning de révision structuré (30min/matière difficile).",
+            "• Dialogue constant entre l'école et la famille pour monitorer les progrès.",
+            "• Participation active aux séances de tutorat organisées par l'école.",
+        ];
+
+        recommendations.forEach((rec) => {
+            doc.text(rec, 22, yPos);
+            yPos += 6;
+        });
+
+        // === SIGNATURES ===
+        yPos += 10;
+        doc.setFont(undefined!, "bold");
+        doc.setFontSize(9);
+        doc.text('Signature du Parent (avec la mention « lu et approuvé »)', 20, yPos);
+        doc.text("Le Directeur Des Etudes", pageWidth - 70, yPos);
+
+        yPos += 3;
+        doc.rect(20, yPos, 80, 20);
+
+        // === NB ===
+        yPos += 26;
+        doc.setFont(undefined!, "bold");
+        const nbSubjects =
+            student.dominantSubjects.length > 0
+                ? student.dominantSubjects.join(", ")
+                : "les matières principales";
+        doc.setTextColor(0, 0, 0);
+        const nbText = `NB : L'élève sera retenu à la fin des cours pour des séances de révision surveillées dans les matières en question (${nbSubjects}).`;
+        const nbLines = doc.splitTextToSize(nbText, pageWidth - 44);
+        doc.text(nbLines, 22, yPos);
+    };
+
+    const generateReport = () => {
