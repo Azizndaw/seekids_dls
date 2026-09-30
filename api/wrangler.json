@@ -1,0 +1,13 @@
+{
+    "$schema":  "node_modules/wrangler/config-schema.json",
+    "name":  "seekids-api",
+    "main":  "src/index.ts",
+    "compatibility_date":  "2026-09-29",
+    "d1_databases":  [
+                         {
+                             "binding":  "DB",
+                             "database_name":  "seekids-db",
+                             "database_id":  "7d600d9c-49dc-45f8-bf98-0891304be749"
+                         }
+                     ]
+}

@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from "axios";
 
 const httpClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "https://api.seekids.net",
+  baseURL: import.meta.env.VITE_API_URL || "https://seekids-api.serigneabdouazizndaw.workers.dev",
   withCredentials: true, // Needed for cookies (if refresh token is stored in httpOnly cookie)
 });
 
