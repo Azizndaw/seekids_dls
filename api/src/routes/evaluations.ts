@@ -1,3 +1,4 @@
+import { getDB } from '../utils/db';
 import { Hono } from 'hono';
 type Env = { Bindings: { DB: D1Database } };
 const evaluations = new Hono<Env>();
@@ -5,7 +6,7 @@ const evaluations = new Hono<Env>();
 // GET /api/schools/:schoolId/evaluations
 evaluations.get('/', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT e.*, d.name as disciplineName, c.nom as classeName, u.nom as professeurNom, u.prenom as professeurPrenom
      FROM Evaluation e
      LEFT JOIN Discipline d ON e.disciplineId = d.id
@@ -19,7 +20,7 @@ evaluations.get('/', async (c) => {
 // GET /api/schools/:schoolId/evaluations/:evalId
 evaluations.get('/:evalId', async (c) => {
     const evalId = c.req.param('evalId');
-    const ev = await c.env.DB.prepare('SELECT * FROM Evaluation WHERE id = ?').bind(evalId).first();
+    const ev = await getDB(c).prepare('SELECT * FROM Evaluation WHERE id = ?').bind(evalId).first();
     return ev ? c.json(ev) : c.json({ error: 'Évaluation non trouvée' }, 404);
 });
 
@@ -27,7 +28,7 @@ evaluations.get('/:evalId', async (c) => {
 evaluations.get('/classe/:classeId', async (c) => {
     const classeId = c.req.param('classeId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT e.*, d.name as disciplineName FROM Evaluation e
      LEFT JOIN Discipline d ON e.disciplineId = d.id
      WHERE e.classeId = ? AND e.schoolId = ? ORDER BY e.date DESC`
@@ -38,7 +39,7 @@ evaluations.get('/classe/:classeId', async (c) => {
 // GET /api/schools/:schoolId/evaluations/professeur/:professeurId
 evaluations.get('/professeur/:professeurId', async (c) => {
     const professeurId = c.req.param('professeurId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT e.*, d.name as disciplineName, c.nom as classeName FROM Evaluation e
      LEFT JOIN Discipline d ON e.disciplineId = d.id
      LEFT JOIN Classe c ON e.classeId = c.id
@@ -52,7 +53,7 @@ evaluations.post('/', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         `INSERT INTO Evaluation (id, title, date, description, type, professeurId, disciplineId, classeId, schoolId, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))`
     ).bind(id, body.title, body.date, body.description || '', body.type || 'EVALUATION', body.professeurId, body.disciplineId, body.classeId, schoolId).run();
@@ -63,7 +64,7 @@ evaluations.post('/', async (c) => {
 evaluations.put('/:evalId', async (c) => {
     const evalId = c.req.param('evalId');
     const body = await c.req.json();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE Evaluation SET title = ?, date = ?, description = ?, type = ? WHERE id = ?'
     ).bind(body.title, body.date, body.description || '', body.type || 'EVALUATION', evalId).run();
     return c.json({ message: 'Évaluation mise à jour' });
@@ -72,7 +73,7 @@ evaluations.put('/:evalId', async (c) => {
 // DELETE /api/schools/:schoolId/evaluations/:evalId
 evaluations.delete('/:evalId', async (c) => {
     const evalId = c.req.param('evalId');
-    await c.env.DB.prepare('DELETE FROM Evaluation WHERE id = ?').bind(evalId).run();
+    await getDB(c).prepare('DELETE FROM Evaluation WHERE id = ?').bind(evalId).run();
     return c.json({ message: 'Évaluation supprimée' });
 });
 

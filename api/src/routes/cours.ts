@@ -1,3 +1,4 @@
+import { getDB } from '../utils/db';
 import { Hono } from 'hono';
 type Env = { Bindings: { DB: D1Database } };
 const cours = new Hono<Env>();
@@ -5,7 +6,7 @@ const cours = new Hono<Env>();
 // GET /api/schools/:schoolId/cours
 cours.get('/', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT co.*, d.name as disciplineName, c.nom as classeName, u.nom as professeurNom, u.prenom as professeurPrenom
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
@@ -19,7 +20,7 @@ cours.get('/', async (c) => {
 // GET /api/schools/:schoolId/cours/:coursId
 cours.get('/:coursId', async (c) => {
     const coursId = c.req.param('coursId');
-    const co = await c.env.DB.prepare('SELECT * FROM Cours WHERE id = ?').bind(coursId).first();
+    const co = await getDB(c).prepare('SELECT * FROM Cours WHERE id = ?').bind(coursId).first();
     return co ? c.json(co) : c.json({ error: 'Cours non trouvé' }, 404);
 });
 
@@ -27,7 +28,7 @@ cours.get('/:coursId', async (c) => {
 cours.get('/classe/:classeId', async (c) => {
     const classeId = c.req.param('classeId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT co.*, d.name as disciplineName, u.nom as professeurNom, u.prenom as professeurPrenom
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
@@ -42,7 +43,7 @@ cours.get('/classe/:classeId', async (c) => {
 cours.get('/day/:day', async (c) => {
     const day = c.req.param('day');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT co.*, d.name as disciplineName, c.nom as classeName, u.nom as professeurNom, u.prenom as professeurPrenom
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
@@ -58,7 +59,7 @@ cours.get('/day/:day', async (c) => {
 cours.get('/professeur/:professeurId', async (c) => {
     const professeurId = c.req.param('professeurId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT co.*, d.name as disciplineName, c.nom as classeName
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
@@ -73,7 +74,7 @@ cours.get('/professeur/:professeurId', async (c) => {
 cours.get('/professeur/:professeurId/day/:day', async (c) => {
     const { professeurId, day } = c.req.param();
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT co.*, d.name as disciplineName, c.nom as classeName
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
@@ -89,7 +90,7 @@ cours.post('/', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         `INSERT INTO Cours (id, jour, heureDebut, heureFin, disciplineId, classeId, professeurId, schoolId)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, body.jour, body.heureDebut, body.heureFin, body.disciplineId, body.classeId, body.professeurId, schoolId).run();
@@ -100,7 +101,7 @@ cours.post('/', async (c) => {
 cours.put('/:coursId', async (c) => {
     const coursId = c.req.param('coursId');
     const body = await c.req.json();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE Cours SET jour = ?, heureDebut = ?, heureFin = ?, disciplineId = ?, classeId = ?, professeurId = ? WHERE id = ?'
     ).bind(body.jour, body.heureDebut, body.heureFin, body.disciplineId, body.classeId, body.professeurId, coursId).run();
     return c.json({ message: 'Cours mis à jour' });
@@ -109,7 +110,7 @@ cours.put('/:coursId', async (c) => {
 // DELETE /api/schools/:schoolId/cours/:coursId
 cours.delete('/:coursId', async (c) => {
     const coursId = c.req.param('coursId');
-    await c.env.DB.prepare('DELETE FROM Cours WHERE id = ?').bind(coursId).run();
+    await getDB(c).prepare('DELETE FROM Cours WHERE id = ?').bind(coursId).run();
     return c.json({ message: 'Cours supprimé' });
 });
 

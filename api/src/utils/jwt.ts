@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = new TextEncoder().encode('seekids-jwt-secret-key-2026-dls');
 
@@ -27,17 +28,10 @@ export async function verifyToken(token: string): Promise<JWTPayload> {
     return payload as unknown as JWTPayload;
 }
 
-// Simple password hashing compatible with the platform
-// Using Web Crypto API available in Cloudflare Workers
 export async function hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password + 'seekids-salt-2026');
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return await bcrypt.hash(password, 10);
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-    const computed = await hashPassword(password);
-    return computed === hash;
+    return await bcrypt.compare(password, hash);
 }

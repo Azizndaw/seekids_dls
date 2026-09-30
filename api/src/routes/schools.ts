@@ -1,3 +1,4 @@
+import { getDB } from '../utils/db';
 import { Hono } from 'hono';
 
 type Env = { Bindings: { DB: D1Database } };
@@ -6,7 +7,7 @@ const schools = new Hono<Env>();
 // GET /api/schools/:schoolId
 schools.get('/:schoolId', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const school = await c.env.DB.prepare('SELECT * FROM School WHERE id = ?').bind(schoolId).first();
+    const school = await getDB(c).prepare('SELECT * FROM School WHERE id = ?').bind(schoolId).first();
     if (!school) return c.json({ error: 'École non trouvée' }, 404);
     return c.json(school);
 });
@@ -16,7 +17,7 @@ schools.put('/:schoolId', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const { name, adresse, email, telephone, siteWeb } = body;
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE School SET name = ?, adresse = ?, email = ?, telephone = ?, siteWeb = ? WHERE id = ?'
     ).bind(name, adresse, email, telephone, siteWeb, schoolId).run();
     return c.json({ message: 'École mise à jour' });
@@ -25,7 +26,7 @@ schools.put('/:schoolId', async (c) => {
 // GET /api/schools/:schoolId/teachers
 schools.get('/:schoolId/teachers', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.schoolId, u.createdAt as created_at,
             u.biographie, u.adresse,
             GROUP_CONCAT(DISTINCT r.name) as role,
@@ -59,7 +60,7 @@ schools.put('/:schoolId/teachers/:teacherId', async (c) => {
     const teacherId = c.req.param('teacherId');
     const body = await c.req.json();
     const { nom, prenom, email, telephone, biographie, adresse } = body;
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE AppUser SET nom = ?, prenom = ?, email = ?, telephone = ?, biographie = ?, adresse = ? WHERE id = ?'
     ).bind(nom, prenom, email, telephone, biographie || null, adresse || null, teacherId).run();
     return c.json({ message: 'Professeur mis à jour' });
@@ -69,7 +70,7 @@ schools.put('/:schoolId/teachers/:teacherId', async (c) => {
 // GET /api/schools/:schoolId/students
 schools.get('/:schoolId/students', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT s.*, c.nom as classeName FROM Student s
      LEFT JOIN Classe c ON s.classeId = c.id
      WHERE s.schoolId = ?
@@ -83,7 +84,7 @@ schools.post('/:schoolId/students', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'INSERT INTO Student (id, nom, prenom, dateOfBirth, schoolId, classeId, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
     ).bind(id, body.nom, body.prenom, body.dateOfBirth, schoolId, body.classe, body.parentId || null).run();
     return c.json({ id, ...body, schoolId }, 201);
@@ -93,7 +94,7 @@ schools.post('/:schoolId/students', async (c) => {
 schools.put('/:schoolId/students/:studentId', async (c) => {
     const studentId = c.req.param('studentId');
     const body = await c.req.json();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = ?, classeId = ?, parentId = ? WHERE id = ?'
     ).bind(body.nom, body.prenom, body.dateOfBirth || null, body.classeId || body.classe, body.parentId || null, studentId).run();
     return c.json({ message: 'Élève mis à jour' });
@@ -102,7 +103,7 @@ schools.put('/:schoolId/students/:studentId', async (c) => {
 // DELETE /api/schools/:schoolId/students/:studentId
 schools.delete('/:schoolId/students/:studentId', async (c) => {
     const studentId = c.req.param('studentId');
-    await c.env.DB.prepare('DELETE FROM Student WHERE id = ?').bind(studentId).run();
+    await getDB(c).prepare('DELETE FROM Student WHERE id = ?').bind(studentId).run();
     return c.json({ message: 'Élève supprimé' });
 });
 
@@ -110,18 +111,18 @@ schools.delete('/:schoolId/students/:studentId', async (c) => {
 // GET /api/schools/:schoolId/classes
 schools.get('/:schoolId/classes', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results: classes } = await c.env.DB.prepare(
+    const { results: classes } = await getDB(c).prepare(
         'SELECT * FROM Classe WHERE schoolId = ? ORDER BY nom'
     ).bind(schoolId).all();
 
     // Attach students and teachers to each class
     for (const cls of classes as any[]) {
-        const { results: students } = await c.env.DB.prepare(
+        const { results: students } = await getDB(c).prepare(
             'SELECT * FROM Student WHERE classeId = ? ORDER BY nom'
         ).bind(cls.id).all();
         cls.students = students;
 
-        const { results: teachers } = await c.env.DB.prepare(
+        const { results: teachers } = await getDB(c).prepare(
             `SELECT u.id, u.nom, u.prenom, u.email FROM AppUser u
        INNER JOIN Cours co ON u.id = co.professeurId AND co.classeId = ?
        WHERE u.schoolId = ?
@@ -138,7 +139,7 @@ schools.post('/:schoolId/classes', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'INSERT INTO Classe (id, nom, niveau, schoolId) VALUES (?, ?, ?, ?)'
     ).bind(id, body.nom, body.niveau || '', schoolId).run();
     return c.json({ id, nom: body.nom, niveau: body.niveau, schoolId }, 201);
@@ -148,14 +149,14 @@ schools.post('/:schoolId/classes', async (c) => {
 schools.put('/:schoolId/classes/:classeId', async (c) => {
     const classeId = c.req.param('classeId');
     const body = await c.req.json();
-    await c.env.DB.prepare('UPDATE Classe SET nom = ?, niveau = ? WHERE id = ?').bind(body.nom, body.niveau || '', classeId).run();
+    await getDB(c).prepare('UPDATE Classe SET nom = ?, niveau = ? WHERE id = ?').bind(body.nom, body.niveau || '', classeId).run();
     return c.json({ message: 'Classe mise à jour' });
 });
 
 // DELETE /api/schools/:schoolId/classes/:classeId
 schools.delete('/:schoolId/classes/:classeId', async (c) => {
     const classeId = c.req.param('classeId');
-    await c.env.DB.prepare('DELETE FROM Classe WHERE id = ?').bind(classeId).run();
+    await getDB(c).prepare('DELETE FROM Classe WHERE id = ?').bind(classeId).run();
     return c.json({ message: 'Classe supprimée' });
 });
 
@@ -178,7 +179,7 @@ schools.put('/:schoolId/classes/:classeId/revokeTeacher', async (c) => {
 // GET /api/schools/:schoolId/parents
 schools.get('/:schoolId/parents', async (c) => {
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.schoolId, u.createdAt as created_at,
             u.profession, u.adresse
      FROM AppUser u
@@ -194,7 +195,7 @@ schools.get('/:schoolId/parents', async (c) => {
 schools.put('/:schoolId/parents/:parentId', async (c) => {
     const parentId = c.req.param('parentId');
     const body = await c.req.json();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'UPDATE AppUser SET nom = ?, prenom = ?, email = ?, telephone = ?, profession = ?, adresse = ? WHERE id = ?'
     ).bind(body.nom, body.prenom, body.email, body.telephone || null, body.profession || null, body.adresse || null, parentId).run();
     return c.json({ message: 'Parent mis à jour' });
@@ -203,7 +204,7 @@ schools.put('/:schoolId/parents/:parentId', async (c) => {
 // --- Disciplines ---
 // GET /api/schools/:schoolId/disciplines
 schools.get('/:schoolId/disciplines', async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM Discipline ORDER BY name').all();
+    const { results } = await getDB(c).prepare('SELECT * FROM Discipline ORDER BY name').all();
     return c.json(results);
 });
 
@@ -211,7 +212,7 @@ schools.get('/:schoolId/disciplines', async (c) => {
 // GET /api/schools/:schoolId/students/:studentId/attendance
 schools.get('/:schoolId/students/:studentId/attendance', async (c) => {
     const studentId = c.req.param('studentId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT sa.*, d.name as disciplineName FROM StudentAttendance sa
      LEFT JOIN Discipline d ON sa.disciplineId = d.id
      WHERE sa.studentId = ?
@@ -226,7 +227,7 @@ schools.post('/:schoolId/attendance', async (c) => {
     const records = Array.isArray(body) ? body : [body];
     for (const record of records) {
         const id = crypto.randomUUID();
-        await c.env.DB.prepare(
+        await getDB(c).prepare(
             'INSERT INTO StudentAttendance (id, studentId, disciplineId, type, date, reason) VALUES (?, ?, ?, ?, ?, ?)'
         ).bind(id, record.studentId, record.disciplineId, record.type, record.date, record.reason || null).run();
     }

@@ -1,3 +1,4 @@
+import { getDB } from '../utils/db';
 import { Hono } from 'hono';
 import { signToken, hashPassword, verifyPassword, type JWTPayload } from '../utils/jwt';
 
@@ -10,11 +11,11 @@ auth.post('/login', async (c) => {
     if (!email || !password) return c.json({ error: 'Email et mot de passe requis' }, 400);
 
     // Find school
-    const school = await c.env.DB.prepare('SELECT id, name FROM School WHERE name = ?').bind(schoolName).first();
+    const school = await getDB(c).prepare('SELECT id, name FROM School WHERE name = ?').bind(schoolName).first();
     if (!school) return c.json({ error: 'École non trouvée' }, 404);
 
     // Find user
-    const user = await c.env.DB.prepare(
+    const user = await getDB(c).prepare(
         'SELECT u.*, GROUP_CONCAT(r.name) as roles FROM AppUser u LEFT JOIN UserRole ur ON u.id = ur.userId LEFT JOIN Role r ON ur.roleId = r.id WHERE u.email = ? AND u.schoolId = ? GROUP BY u.id'
     ).bind(email, school.id).first();
 
@@ -52,22 +53,22 @@ auth.post('/register', async (c) => {
     }
 
     // Check if user exists
-    const existing = await c.env.DB.prepare('SELECT id FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
+    const existing = await getDB(c).prepare('SELECT id FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
     if (existing) return c.json({ error: 'Un utilisateur avec cet email existe déjà' }, 409);
 
     const id = crypto.randomUUID();
     const hashedPassword = await hashPassword(password);
 
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'INSERT INTO AppUser (id, nom, prenom, email, password, telephone, schoolId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
     ).bind(id, nom, prenom, email, hashedPassword, telephone || null, schoolId).run();
 
     // Assign roles
     if (roles && Array.isArray(roles)) {
         for (const roleName of roles) {
-            const role = await c.env.DB.prepare('SELECT id FROM Role WHERE name = ?').bind(roleName).first();
+            const role = await getDB(c).prepare('SELECT id FROM Role WHERE name = ?').bind(roleName).first();
             if (role) {
-                await c.env.DB.prepare('INSERT INTO UserRole (userId, roleId) VALUES (?, ?)').bind(id, role.id).run();
+                await getDB(c).prepare('INSERT INTO UserRole (userId, roleId) VALUES (?, ?)').bind(id, role.id).run();
             }
         }
     }
@@ -75,7 +76,7 @@ auth.post('/register', async (c) => {
     // Assign disciplines
     if (disciplineIds && Array.isArray(disciplineIds)) {
         for (const discId of disciplineIds) {
-            await c.env.DB.prepare('INSERT INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(id, discId).run();
+            await getDB(c).prepare('INSERT INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(id, discId).run();
         }
     }
 
@@ -86,14 +87,14 @@ auth.post('/register', async (c) => {
 auth.put('/reset-password', async (c) => {
     const { email, oldPassword, newPassword, schoolId } = await c.req.json();
 
-    const user = await c.env.DB.prepare('SELECT id, password FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
+    const user = await getDB(c).prepare('SELECT id, password FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
     if (!user) return c.json({ error: 'Utilisateur non trouvé' }, 404);
 
     const valid = await verifyPassword(oldPassword, user.password as string);
     if (!valid) return c.json({ error: 'Ancien mot de passe incorrect' }, 401);
 
     const hashedNew = await hashPassword(newPassword);
-    await c.env.DB.prepare('UPDATE AppUser SET password = ? WHERE id = ?').bind(hashedNew, user.id).run();
+    await getDB(c).prepare('UPDATE AppUser SET password = ? WHERE id = ?').bind(hashedNew, user.id).run();
 
     return c.json({ message: 'Mot de passe modifié avec succès' });
 });
@@ -119,7 +120,7 @@ auth.get('/me/role/:role', async (c) => {
     const user = c.get('user') as JWTPayload;
     if (!user) return c.json({ error: 'Non authentifié' }, 401);
 
-    const fullUser = await c.env.DB.prepare(
+    const fullUser = await getDB(c).prepare(
         `SELECT u.*, GROUP_CONCAT(d.name) as disciplineNames, GROUP_CONCAT(d.id) as disciplineIds
      FROM AppUser u
      LEFT JOIN "_TeacherDisciplines" td ON u.id = td.A
@@ -144,9 +145,9 @@ auth.get('/me/role/:role', async (c) => {
 // DELETE /api/auth/users/:id
 auth.delete('/users/:id', async (c) => {
     const id = c.req.param('id');
-    await c.env.DB.prepare('DELETE FROM UserRole WHERE userId = ?').bind(id).run();
-    await c.env.DB.prepare('DELETE FROM "_TeacherDisciplines" WHERE A = ?').bind(id).run();
-    await c.env.DB.prepare('DELETE FROM AppUser WHERE id = ?').bind(id).run();
+    await getDB(c).prepare('DELETE FROM UserRole WHERE userId = ?').bind(id).run();
+    await getDB(c).prepare('DELETE FROM "_TeacherDisciplines" WHERE A = ?').bind(id).run();
+    await getDB(c).prepare('DELETE FROM AppUser WHERE id = ?').bind(id).run();
     return c.json({ message: 'Utilisateur supprimé' });
 });
 

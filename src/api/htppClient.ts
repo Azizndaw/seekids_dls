@@ -8,8 +8,10 @@ const httpClient: AxiosInstance = axios.create({
 // Attach token to requests
 httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("accessToken");
+  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
   if (config.headers) {
     config.headers["X-School-Name"] = "dakar-leaders-school";
+    config.headers["X-Academic-Year"] = academicYear;
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
     }

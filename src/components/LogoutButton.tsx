@@ -14,13 +14,21 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({ className }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [academicYear, setAcademicYear] = React.useState(localStorage.getItem("academicYear") || "2025-2026");
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newYear = e.target.value;
+    localStorage.setItem("academicYear", newYear);
+    setAcademicYear(newYear);
+    window.location.reload();
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate("/");
   };
 
   const handleSettings = () => {
-    // Déterminer la page de paramètres selon le rôle ou la page actuelle
     if (location.pathname.includes("teacher")) {
       navigate("/teacher-settings");
     } else if (location.pathname.includes("parent")) {
@@ -31,7 +39,16 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({ className }) => {
   };
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <select
+        value={academicYear}
+        onChange={handleYearChange}
+        className="hidden sm:block h-10 w-[140px] appearance-none rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 shadow-sm transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        style={{ backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`, backgroundPosition: 'right .5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+      >
+        <option value="2025-2026">2025 - 2026</option>
+        <option value="2026-2027">2026 - 2027</option>
+      </select>
       <Button variant="outline" onClick={handleSettings} className="flex items-center gap-2">
         <Settings className="w-4 h-4" />
         <span className="hidden sm:inline">Paramètres</span>

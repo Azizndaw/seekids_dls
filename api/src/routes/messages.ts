@@ -1,3 +1,4 @@
+import { getDB } from '../utils/db';
 import { Hono } from 'hono';
 type Env = { Bindings: { DB: D1Database } };
 const messages = new Hono<Env>();
@@ -6,7 +7,7 @@ const messages = new Hono<Env>();
 messages.get('/:userId', async (c) => {
     const userId = c.req.param('userId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT m.*,
             s.nom as senderNom, s.prenom as senderPrenom,
             r.nom as receiverNom, r.prenom as receiverPrenom
@@ -23,7 +24,7 @@ messages.get('/:userId', async (c) => {
 messages.get('/conversations/:userId', async (c) => {
     const userId = c.req.param('userId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await getDB(c).prepare(
         `SELECT DISTINCT
        CASE WHEN m.senderId = ? THEN m.receiverId ELSE m.senderId END as contactId,
        CASE WHEN m.senderId = ? THEN r.nom ELSE s.nom END as contactNom,
@@ -44,7 +45,7 @@ messages.post('/', async (c) => {
     const schoolId = c.req.param('schoolId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await c.env.DB.prepare(
+    await getDB(c).prepare(
         'INSERT INTO Message (id, senderId, receiverId, content, read, schoolId, sentAt) VALUES (?, ?, ?, ?, 0, ?, datetime("now"))'
     ).bind(id, body.senderId, body.receiverId, body.content, schoolId).run();
     return c.json({ id, ...body }, 201);
@@ -53,7 +54,7 @@ messages.post('/', async (c) => {
 // PUT /api/schools/:schoolId/messages/:messageId/read
 messages.put('/:messageId/read', async (c) => {
     const messageId = c.req.param('messageId');
-    await c.env.DB.prepare('UPDATE Message SET read = 1 WHERE id = ?').bind(messageId).run();
+    await getDB(c).prepare('UPDATE Message SET read = 1 WHERE id = ?').bind(messageId).run();
     return c.json({ message: 'Message marqué comme lu' });
 });
 
