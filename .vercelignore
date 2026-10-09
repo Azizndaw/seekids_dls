@@ -1,11 +1,5 @@
-api
-api/
-api/*
-api/**
-**/api/**
-*.sql
-*.py
-*.cjs
-*.mjs
+/api
+/api/**
+
 
 
