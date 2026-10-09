@@ -60,26 +60,14 @@ cours.get('/professeur/:professeurId', async (c) => {
     const professeurId = c.req.param('professeurId');
     const schoolId = c.req.param('schoolId');
 
-    // First find teacher name to allow fallback matching by teacher name if ID differs
-    const teacherUser = await getDB(c).prepare('SELECT nom, prenom FROM AppUser WHERE id = ?').bind(professeurId).first<{ nom: string; prenom: string }>();
-
-    let query = `SELECT co.*, d.name as disciplineName, c.nom as classeName, c.niveau as classeNiveau
-     FROM Cours co
-     LEFT JOIN Discipline d ON co.disciplineId = d.id
-     LEFT JOIN Classe c ON co.classeId = c.id
-     WHERE (co.professeurId = ?`;
-
-    const params: any[] = [professeurId];
-
-    if (teacherUser && (teacherUser.nom || teacherUser.prenom)) {
-        query += ` OR co.professeurId IN (SELECT id FROM AppUser WHERE schoolId = ? AND (LOWER(nom) = LOWER(?) OR LOWER(prenom) = LOWER(?)))`;
-        params.push(schoolId, teacherUser.nom || '', teacherUser.prenom || '');
-    }
-
-    query += `) AND co.schoolId = ? ORDER BY co.jour, co.heure`;
-    params.push(schoolId);
-
-    const { results } = await getDB(c).prepare(query).bind(...params).all();
+    const { results } = await getDB(c).prepare(
+        `SELECT co.*, d.name as disciplineName, c.nom as classeName, c.niveau as classeNiveau
+         FROM Cours co
+         LEFT JOIN Discipline d ON co.disciplineId = d.id
+         LEFT JOIN Classe c ON co.classeId = c.id
+         WHERE co.professeurId = ? AND co.schoolId = ?
+         ORDER BY co.jour, co.heure`
+    ).bind(professeurId, schoolId).all();
     return c.json(results);
 });
 
