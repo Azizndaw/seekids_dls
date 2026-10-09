@@ -4,4 +4,8 @@ api/*
 api/**
 **/api/**
 *.sql
+*.py
+*.cjs
+*.mjs
+
 
