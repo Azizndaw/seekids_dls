@@ -268,7 +268,7 @@ const TeacherAttendance = () => {
       const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
         nom: student.nom || "Inconnu",
         prenom: student.prenom || "Inconnu",
-        abscence: (student.absence ?? student.abscence ?? 0) + 1,
+        abscence: (student.abscence ?? 0) + 1,
         moyenne: student.moyenne || 0,
         dateOfBirth: student.dateOfBirth || new Date().toISOString(),
         retards: student.retards || 0,
@@ -311,7 +311,7 @@ const TeacherAttendance = () => {
       const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
         nom: student.nom || "Inconnu",
         prenom: student.prenom || "Inconnu",
-        abscence: student.absence ?? student.abscence ?? 0,
+        abscence: student.abscence ?? 0,
         moyenne: student.moyenne || 0,
         dateOfBirth: student.dateOfBirth || new Date().toISOString(),
         retards: (student.retards ?? 0) + 1,
@@ -481,17 +481,17 @@ const TeacherAttendance = () => {
           </div>
         </div>
 
-        {/* Top Control Bar: Class & Subject Selectors */}
+        {/* Top Control Bar: Class, Subject & Date Selectors */}
         <Card className="bg-muted/30">
-          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+          <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
               {/* Classe Selector */}
               <div className="w-full sm:w-auto">
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
                   Classe
                 </label>
                 <Select value={selectedClass || ""} onValueChange={handleClassChange}>
-                  <SelectTrigger className="w-full sm:w-56 bg-white dark:bg-gray-800">
+                  <SelectTrigger className="w-full sm:w-48 bg-white dark:bg-gray-800">
                     <SelectValue placeholder="Sélectionner une classe" />
                   </SelectTrigger>
                   <SelectContent>
@@ -510,10 +510,10 @@ const TeacherAttendance = () => {
               {/* Matière Selector */}
               <div className="w-full sm:w-auto">
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Matière (Automatique)
+                  Matière
                 </label>
                 <Select value={selectedSubject || ""} onValueChange={setSelectedSubject}>
-                  <SelectTrigger className="w-full sm:w-56 bg-white dark:bg-gray-800">
+                  <SelectTrigger className="w-full sm:w-48 bg-white dark:bg-gray-800">
                     <SelectValue placeholder="Sélectionner une matière" />
                   </SelectTrigger>
                   <SelectContent>
@@ -524,6 +524,36 @@ const TeacherAttendance = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Date de l'appel */}
+              <div className="w-full sm:w-auto">
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Date de la séance
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full sm:w-48 justify-start text-left font-normal bg-white dark:bg-gray-800 border-gray-300",
+                        !attendanceDate && "text-muted-foreground"
+                      )}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {attendanceDate
+                        ? format(attendanceDate, "dd/MM/yyyy", { locale: fr })
+                        : "Sélectionner une date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={attendanceDate}
+                      onSelect={(date) => date && setAttendanceDate(date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -536,101 +566,6 @@ const TeacherAttendance = () => {
 
         {selectedClass && (
           <div className="space-y-4">
-            {/* Émargement & Fiche de Cours (Automatique) */}
-            <Card className="border-blue-200 bg-blue-50/20 dark:bg-blue-950/10">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
-                  <Clock className="w-5 h-5 text-blue-600" />
-                  Fiche d'Émargement & Saisie du Cours
-                </CardTitle>
-                <CardDescription>
-                  L'horaire et le nombre de séances sont détectés automatiquement à partir de votre emploi du temps.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Date de l'appel */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                      Date de la séance *
-                    </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal bg-white dark:bg-gray-800 border-gray-300",
-                            !attendanceDate && "text-muted-foreground"
-                          )}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {attendanceDate
-                            ? format(attendanceDate, "PPP", { locale: fr })
-                            : "Sélectionner une date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={attendanceDate}
-                          onSelect={(date) => date && setAttendanceDate(date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Horaire (Fixe / Grisé) */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                      Horaire du cours (Automatique)
-                    </label>
-                    <Input
-                      value={sessionInfo.timeStr}
-                      readOnly
-                      title="Horaire détecté d'après le planning"
-                      className="bg-gray-100 dark:bg-gray-800 font-semibold text-center cursor-not-allowed border-gray-300"
-                    />
-                  </div>
-
-                  {/* Nb de séances (Fixe / Grisé) */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                      Nombre de séances (Automatique)
-                    </label>
-                    <Input
-                      value={`${sessionInfo.numSessions} séance${sessionInfo.numSessions > 1 ? "s" : ""} (${sessionInfo.numSessions}h)`}
-                      readOnly
-                      title="Nombre de séances calculé d'après la durée"
-                      className="bg-gray-100 dark:bg-gray-800 font-semibold text-center cursor-not-allowed border-gray-300"
-                    />
-                  </div>
-                </div>
-
-                {/* Contenu du cours (Cahier de texte) - OBLIGATOIRE */}
-                <div>
-                  <label className="text-xs font-semibold text-foreground block mb-1">
-                    Contenu du cours (Cahier de texte) <span className="text-red-600 font-bold">* Obligatoire</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Saisissez le résumé du cours (ex: Chapitre 2 - Leçon et exercices 1 à 4)..."
-                    value={courseContent}
-                    onChange={(e) => setCourseContent(e.target.value)}
-                    className="w-full p-3 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <Button
-                    disabled={disabledButton}
-                    onClick={validateAttendance}
-                    className="bg-green-600 hover:bg-green-700 text-white font-medium px-6">
-                    <Send className="w-4 h-4 mr-2" />
-                    Valider l'Émargement et Notifier
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -742,6 +677,16 @@ const TeacherAttendance = () => {
                       </div>
                     );
                   })}
+                </div>
+
+                <div className="flex justify-end pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
+                  <Button
+                    disabled={disabledButton}
+                    onClick={validateAttendance}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-8 py-3 rounded-lg shadow-md transition-all flex items-center gap-2">
+                    <Send className="w-4 h-4" />
+                    Valider les Présences et Notifier
+                  </Button>
                 </div>
               </CardContent>
             </Card>
