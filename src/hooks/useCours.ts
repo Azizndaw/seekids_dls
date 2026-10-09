@@ -607,9 +607,24 @@ export function transformToRecentClasses(courses: any[]): Array<any> {
   const dayIdx = (now.getDay() + 6) % 7; // Monday = 0, Sunday = 6
   const todayName = weekDays[dayIdx];
 
+  const norm = (str: string) =>
+    (str || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+  const targetDay = norm(todayName);
+
   const coursesOfToday = courses.filter((c) => {
-    const cDay = (c?.jour || "").trim().toLowerCase();
-    return cDay === todayName.toLowerCase();
+    const cDay = norm(c?.jour);
+    if (!cDay) return false;
+    return (
+      cDay === targetDay ||
+      cDay.includes(targetDay) ||
+      targetDay.includes(cDay) ||
+      (cDay.length >= 3 && targetDay.startsWith(cDay.slice(0, 3)))
+    );
   });
 
   return coursesOfToday.map((course) => {

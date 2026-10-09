@@ -55,16 +55,40 @@ const TeacherDashboard = () => {
   const hasParentRole = role.includes("PARENT");
   const hasAdminRole = role.includes("ADMIN");
 
+  // Multi-source teacher classes calculation
+  const teacherClassesFromAuth = (currentTeacher?.classes || []).map((item: any) => item.classe || item).filter(Boolean);
+  const teacherClassesFromAll = (allClasses || []).filter((cls: any) =>
+    cls.professeurs?.some((p: any) => p.professeurId === authUser?.id) ||
+    cls.professeurId === authUser?.id
+  );
+  const courseClasses = (currentCourses || []).map((c: any) => c.classe).filter(Boolean);
+
+  const allClassesRaw = [...teacherClassesFromAuth, ...teacherClassesFromAll, ...courseClasses];
+  const uniqueClassesMap = new Map();
+  allClassesRaw.forEach((c) => c?.id && uniqueClassesMap.set(c.id, c));
+  const classes = Array.from(uniqueClassesMap.values());
+
+  const allStudents = classes.flatMap((cls: any) => cls.students || []);
+
+  // Compute accurate total students across all assigned classes
+  const computedTotalStudents = classes.reduce((sum: number, cls: any) => {
+    const studs = cls.students || [];
+    const count = Array.isArray(studs) && studs.length > 0
+      ? studs.length
+      : (cls.nbEleves || cls.effectif || 0);
+    return sum + count;
+  }, 0);
+
   const stats = [
     {
       title: "Mes Classes",
-      value: currentTeacher?.classes?.length || new Set(currentCourses?.map(c => c.classeId)).size || 0,
+      value: classes.length || currentTeacher?.classes?.length || new Set(currentCourses?.map(c => c.classeId)).size || 0,
       icon: Users,
       color: "bg-blue-500 dark:bg-blue-600",
     },
     {
       title: "Élèves Total",
-      value: currentTeacher?.totalStudents || 0,
+      value: computedTotalStudents || currentTeacher?.totalStudents || allStudents.length || 0,
       icon: UserCheck,
       color: "bg-green-500 dark:bg-green-600",
     },
@@ -100,28 +124,10 @@ const TeacherDashboard = () => {
       icon: Calendar,
       action: () => navigate("/teacher-schedule"),
     },
-    {
-      title: "Emploi du temps",
-      description: "Consulter planning et cours",
-      icon: Calendar,
-      action: () => navigate("/teacher-schedule"),
-    },
   ];
 
-  // Flatten students list for the modal
-  const teacherClasses = allClasses?.filter((cls: any) =>
-    cls.professeurs?.some((p: any) => p.professeurId === authUser?.id)
-  ) || [];
-  const courseClasses = currentCourses?.map((c) => c.classe).filter(Boolean) || [];
-
-  const allClassesRaw = [...teacherClasses, ...courseClasses];
-  const uniqueClassesMap = new Map();
-  allClassesRaw.forEach(c => uniqueClassesMap.set(c.id, c));
-  const classes = Array.from(uniqueClassesMap.values());
-
-  const allStudents = classes.flatMap((cls) => cls.students || []);
   // Prepare classes list for the modal
-  const classesList = classes.map((cls) => ({ id: cls.id, nom: `${cls.niveau} ${cls.nom}` }));
+  const classesList = classes.map((cls: any) => ({ id: cls.id, nom: `${cls.niveau || ''} ${cls.nom || ''}`.trim() }));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-3 sm:p-6 transition-colors duration-300">
