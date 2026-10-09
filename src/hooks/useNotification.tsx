@@ -28,7 +28,7 @@ export const useGetNotifications = () => {
     queryKey: ["notifications", schoolId, userId],
     queryFn: async () => {
       const { data } = await httpClient.get(
-        `/api/schools/${schoolId}/users/${userId}/notifications`,
+        `/api/schools/${schoolId}/notifications/${userId}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
@@ -51,7 +51,7 @@ export const useUpdateNotificationStatus = () => {
       if (!schoolId) throw new Error("School ID is missing");
 
       const { data } = await httpClient.put(
-        `/api/schools/${schoolId}/notifications/${notificationId}/status`,
+        `/api/schools/${schoolId}/notifications/${notificationId}/read`,
         {}, // No body required
         {
           headers: {

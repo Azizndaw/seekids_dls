@@ -93,7 +93,7 @@ const ParentDashboard = () => {
 
   useEffect(() => {
     const cleaned = selectedChildGrades?.map((note: any) => ({
-      subject: note.discipline.name,
+      subject: note.discipline?.name || note.disciplineName || "Matière inconnue",
       grade: note.note,
       coefficient: note.coefficient,
       date: formatDate(note.date),
@@ -224,9 +224,8 @@ const ParentDashboard = () => {
                           <DropdownMenuItem
                             key={child.id}
                             onClick={() => setSelectedChild(child)}
-                            className={`flex items-center gap-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${
-                              selectedChild?.id === child.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                            }`}>
+                            className={`flex items-center gap-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${selectedChild?.id === child.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                              }`}>
                             <User className="w-4 h-4" />
                             <div>
                               <div className="font-medium">{child.prenom}</div>
@@ -314,11 +313,10 @@ const ParentDashboard = () => {
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                          notification.urgent
+                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${notification.urgent
                             ? "bg-red-50 dark:bg-red-900/20 border-red-500"
                             : "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
-                        }`}
+                          }`}
                         onClick={() => handleNotificationClick(notification.id)}>
                         <div className="flex items-start justify-between">
                           <p className="font-medium text-gray-900 dark:text-white text-sm">
@@ -353,41 +351,37 @@ const ParentDashboard = () => {
           <TabsList className="grid w-full grid-cols-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 gap-0.5 sm:gap-1 p-0">
             <TabsTrigger
               value="dashboard"
-              className={`flex flex-col sm:flex-row items-center justify-center sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${
-                activeTab === "dashboard"
+              className={`flex flex-col sm:flex-row items-center justify-center sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${activeTab === "dashboard"
                   ? "bg-blue-500 text-white shadow-md"
                   : "hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 text-gray-700 dark:text-gray-300"
-              }`}>
+                }`}>
               <Home className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="text-xs sm:text-sm">Accueil</span>
             </TabsTrigger>
             <TabsTrigger
               value="grades"
-              className={`flex flex-col sm:flex-row items-center justify-center sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${
-                activeTab === "grades"
+              className={`flex flex-col sm:flex-row items-center justify-center sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${activeTab === "grades"
                   ? "bg-green-500 text-white shadow-md"
                   : "hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 text-gray-700 dark:text-gray-300"
-              }`}>
+                }`}>
               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="text-xs sm:text-sm">Notes</span>
             </TabsTrigger>
             <TabsTrigger
               value="schedule"
-              className={`flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${
-                activeTab === "schedule"
+              className={`flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${activeTab === "schedule"
                   ? "bg-purple-500 text-white shadow-md"
                   : "hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 text-gray-700 dark:text-gray-300"
-              }`}>
+                }`}>
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="text-xs sm:text-sm">Planning</span>
             </TabsTrigger>
             <TabsTrigger
               value="chat"
-              className={`flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${
-                activeTab === "chat"
+              className={`flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1 lg:space-x-2 text-xs sm:text-sm py-2 px-1 sm:px-2 transition-all ${activeTab === "chat"
                   ? "bg-teal-500 text-white shadow-md"
                   : "hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-600 dark:hover:text-teal-400 text-gray-700 dark:text-gray-300"
-              }`}>
+                }`}>
               <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="text-xs sm:text-sm">Chat</span>
             </TabsTrigger>

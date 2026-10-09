@@ -20,6 +20,7 @@ export const useUniversalAuth = () => {
 
   const logout = () => {
     localStorage.removeItem("utilisateur_connecte");
+    localStorage.removeItem("accessToken");
     toast({
       title: "Déconnexion réussie",
       description: "À bientôt !",

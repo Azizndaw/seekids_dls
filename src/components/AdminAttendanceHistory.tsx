@@ -62,19 +62,35 @@ const AdminAttendanceHistory = () => {
     );
   }
 
-  const formattedEmargement: AttendanceRecord[] = dbEmargements.map((em) => ({
-    id: em.id,
-    date: em.debut.split("T")[0],
-    courseSummary: em.content,
-    startTime: em.debut.slice(11, 16),
-    endTime: em.fin.slice(11, 16),
-    sessionCount: em.seanceCounter,
-    notes: em.additionalInfo,
-    submittedAt: em.createdAt.split("T")[0],
-    teacherName: em.professeur ? [em.professeur.prenom, em.professeur.nom].join(" ") : "Inconnu",
-    class: em.classe ? [em.classe.niveau, em.classe.nom].join(" ") : "N/A",
-    subject: em.discipline ? em.discipline.name : "N/A",
-  }));
+  const formattedEmargement: AttendanceRecord[] = dbEmargements.map((em: any) => {
+    // Handle both Prisma ISO strings and D1 Epoch timestamp numbers
+    const parseSqlDate = (d: any) => {
+      if (!d) return new Date().toISOString();
+      if (typeof d === 'number' || (typeof d === 'string' && !isNaN(Number(d)))) {
+        // Test if the number is too small (seconds vs ms). D1 stores ms.
+        return new Date(Number(d)).toISOString();
+      }
+      return new Date(d).toISOString();
+    };
+
+    const debutIso = parseSqlDate(em.debut);
+    const finIso = parseSqlDate(em.fin);
+    const createdAtIso = parseSqlDate(em.createdAt);
+
+    return {
+      id: em.id,
+      date: debutIso.split("T")[0],
+      courseSummary: em.content,
+      startTime: debutIso.slice(11, 16),
+      endTime: finIso.slice(11, 16),
+      sessionCount: em.seanceCounter,
+      notes: em.additionalInfo,
+      submittedAt: createdAtIso.split("T")[0],
+      teacherName: [(em.professeur?.prenom || em.professeurPrenom || ""), (em.professeur?.nom || em.professeurNom || "")].filter(Boolean).join(" ") || "Inconnu",
+      class: [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" ") || "Classe Inconnue",
+      subject: em.discipline?.name || em.disciplineName || "Matière",
+    };
+  });
 
   const teachers = dbteachers.map((dbt) => `${dbt.prenom} ${dbt.nom}`);
   const filteredRecords = formattedEmargement.filter((record) => {

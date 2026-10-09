@@ -20,10 +20,10 @@ const app = new Hono<Env>();
 app.use(
     '*',
     cors({
-        origin: '*',
+        origin: (origin) => origin || '*',
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization', 'X-School-Name'],
-        exposeHeaders: ['Content-Length'],
+        allowHeaders: ['Content-Type', 'Authorization', 'X-School-Name', 'X-Academic-Year'],
+        exposeHeaders: ['X-Academic-Year', 'Content-Length'],
         maxAge: 600,
         credentials: true,
     })
@@ -32,14 +32,15 @@ app.use(
 // Health check root endpoint
 app.get('/', (c) => c.text('SeeKids API is running! 🚀'));
 
+// --- Protected Routes ---
+// On applique le middleware d'authentification à toutes les routes ci-dessous
+app.use('/api/auth/me/*', authMiddleware);
+app.use('/api/schools/*', authMiddleware);
+
 // --- Public Routes ---
 app.route('/api/auth', auth);
 
-// --- Protected Routes ---
-// On applique le middleware d'authentification à toutes les routes ci-dessous
-app.use('/api/schools/*', authMiddleware);
-
-app.route('/api/schools/:schoolId', schools);
+app.route('/api/schools', schools);
 app.route('/api/schools/:schoolId/notes', notes);
 app.route('/api/schools/:schoolId/evaluations', evaluations);
 app.route('/api/schools/:schoolId/cours', cours);

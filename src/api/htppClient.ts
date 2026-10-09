@@ -8,7 +8,13 @@ const httpClient: AxiosInstance = axios.create({
 // Attach token to requests
 httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("accessToken");
-  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
+
+  const isAdmin = typeof window !== 'undefined' && window.location.pathname.includes('admin');
+  let academicYear = localStorage.getItem("academicYear") || "2026-2027";
+  if (!isAdmin) {
+    academicYear = "2026-2027";
+  }
+
   if (config.headers) {
     config.headers["X-School-Name"] = "dakar-leaders-school";
     config.headers["X-Academic-Year"] = academicYear;

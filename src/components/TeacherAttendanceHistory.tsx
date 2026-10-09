@@ -138,11 +138,11 @@ const TeacherAttendanceHistory = ({ subjects, classes }: TeacherAttendanceSheetP
         sessionCount: em.seanceCounter,
         notes: em.additionalInfo,
         submittedAt: em.createdAt.split("T")[0],
-        teacherName: [em.professeur.prenom, em.professeur.nom].join(" "),
-        class: [em.classe.niveau, em.classe.nom].join(" "),
-        subject: em.discipline.name,
-        classId: em.classe.id,
-        subjectId: em.discipline.id,
+        teacherName: [(em.professeur?.prenom || em.professeurPrenom || ""), (em.professeur?.nom || em.professeurNom || "")].filter(Boolean).join(" "),
+        class: [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" "),
+        subject: em.discipline?.name || em.disciplineName || "Matière inconnue",
+        classId: em.classe?.id || em.classeId,
+        subjectId: em.discipline?.id || em.disciplineId,
       }));
       setAttendanceRecords(formatted);
     }

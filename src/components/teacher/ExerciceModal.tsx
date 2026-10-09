@@ -43,6 +43,12 @@ const ExerciceModal = ({ subjects, classes }: ExerciceModalProps) => {
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 7 days from now
     });
 
+    React.useEffect(() => {
+        if (subjects && subjects.length > 0 && !formData.subject) {
+            setFormData((prev) => ({ ...prev, subject: subjects[0].id }));
+        }
+    }, [subjects, formData.subject]);
+
     const { mutate: createExercice, isPending } = useCreateEvaluation();
 
     const handleSubmit = () => {

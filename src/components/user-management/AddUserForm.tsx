@@ -43,7 +43,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({
     prenom: "",
     email: "",
     telephone: "",
-    mot_de_passe: "motdepasse123",
+    mot_de_passe: role === "TEACHER" ? "Seekids2027" : "motdepasse123",
   });
   const [visible, setVisible] = useState(false);
 
@@ -74,12 +74,11 @@ const AddUserForm: React.FC<AddUserFormProps> = ({
   };
 
   const handleSubmit = async () => {
-    // Validation: Au moins email OU téléphone requis
+    // Validation: Nom, prénom, mot de passe requis
     if (
       !formData.nom ||
       !formData.prenom ||
-      !formData.mot_de_passe ||
-      (!formData.email && !formData.telephone)
+      !formData.mot_de_passe
     ) {
       return;
     }
@@ -181,29 +180,22 @@ const AddUserForm: React.FC<AddUserFormProps> = ({
             </div>
           </div>
           <div>
-            <Label htmlFor={`${role}-email`}>Email {!formData.telephone && "*"}</Label>
+            <Label htmlFor={`${role}-email`}>Email (optionnel)</Label>
             <Input
               id={`${role}-email`}
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className={!formData.email && !formData.telephone ? "border-red-500" : ""}
             />
           </div>
           <div>
-            <Label htmlFor={`${role}-telephone`}>Téléphone {!formData.email && "*"}</Label>
+            <Label htmlFor={`${role}-telephone`}>Téléphone</Label>
             <PhoneInput
               country={"sn"}
               value={formData.telephone}
               placeholder="+221 77 123 45 67"
               onChange={(e) => setFormData({ ...formData, telephone: e.valueOf() })}
             />
-
-            {!formData.email && !formData.telephone && (
-              <p className="text-xs text-red-500 mt-1">
-                Au moins un email ou un téléphone est requis
-              </p>
-            )}
           </div>
           <div>
             <Label htmlFor={`${role}-password`}>Mot de passe</Label>
@@ -292,14 +284,13 @@ const AddUserForm: React.FC<AddUserFormProps> = ({
               assignTeacherMutation.isPending ||
               assignSubjectMutation.isPending ||
               (role === "TEACHER" && selectedSubjects.length === 0) ||
-              (!formData.email && !formData.telephone) ||
               !formData.nom ||
               !formData.prenom ||
               !formData.mot_de_passe
             }>
             {createUserMutation.isPending ||
-            assignTeacherMutation.isPending ||
-            assignSubjectMutation.isPending ? (
+              assignTeacherMutation.isPending ||
+              assignSubjectMutation.isPending ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
@@ -310,7 +301,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({
       </DialogContent>
 
       {/* Dialog WhatsApp */}
-      <Dialog open={showWhatsAppDialog} onOpenChange={() => {}}>
+      <Dialog open={showWhatsAppDialog} onOpenChange={() => { }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Utilisateur créé avec succès!</DialogTitle>

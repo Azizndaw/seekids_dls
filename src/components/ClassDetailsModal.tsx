@@ -117,7 +117,7 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
       if (!uniqueSubjects.has(course.disciplineId)) {
         uniqueSubjects.set(course.disciplineId, {
           id: course.disciplineId,
-          name: course.discipline.name,
+          name: (course.discipline?.name || course.disciplineName),
         });
       }
     });
@@ -350,8 +350,8 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
                           </div>
                         </div>
                         {(() => {
-                          const absenceCount = student.attendance.filter(
-                            (a) => a.type === "ABSCENCE",
+                          const absenceCount = (student.attendance || (student as any).school_attendances || (student as any).attendances || []).filter(
+                            (a: any) => a.type === "ABSCENCE" || a.type === "ABSENCE",
                           ).length;
                           const alert = getAttendanceAlert(absenceCount);
                           if (!alert) return null;
@@ -551,7 +551,7 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
                       {/* ---------------------------- ATTENDANCE ---------------------------- */}
 
                       <TabsContent value="attendance">
-                        {student.attendance.length === 0 ? (
+                        {(student.attendance || (student as any).school_attendances || (student as any).attendances || []).length === 0 ? (
                           <div className="text-center py-6 text-muted-foreground">
                             <UserX className="w-10 h-10 mx-auto mb-3 opacity-50" />
                             Aucun enregistrement
@@ -570,7 +570,7 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
                             </TableHeader>
 
                             <TableBody>
-                              {student.attendance.map((record, index) => (
+                              {(student.attendance || (student as any).school_attendances || (student as any).attendances || []).map((record: any, index: number) => (
                                 <TableRow key={index}>
                                   <TableCell>
                                     <div className="flex items-center gap-2">

@@ -20,7 +20,13 @@ interface ChildInfoProps {
     absence: number;
     retards: number;
     id: string; // Added id
-    attendances: any[];
+    attendances?: any[];
+    school_attendances?: any[];
+    className?: string;
+    classNiveau?: string;
+    classeId?: string;
+    abscence?: number;
+    subjectAverages?: any;
   };
 }
 
@@ -29,15 +35,23 @@ const ChildInfo = ({ childInfo }: ChildInfoProps) => {
   const [showDelaysModal, setShowDelaysModal] = useState(false);
 
   // Données d'exemple pour les absences
-  const attendanceData = childInfo.attendances;
-  const absencesData = attendanceData.filter((attendance) => attendance.type == "ABSCENCE");
-  const delaysData = attendanceData.filter((attendance) => attendance.type == "RETARD");
+  const attendanceData = childInfo.attendances || childInfo.school_attendances || [];
+  const absencesData = attendanceData.filter((attendance: any) =>
+    attendance.type === "ABSCENCE" || attendance.type === "ABSENCE"
+  );
+  const delaysData = attendanceData.filter((attendance: any) =>
+    attendance.type === "RETARD" || attendance.type === "LATE"
+  );
+
+  // Privilégier le compte réel des données sur le compteur théorique potentiellement figé
+  const displayAbsences = absencesData.length > 0 ? absencesData.length : (childInfo.absence ?? childInfo.abscence ?? 0);
+  const displayRetards = delaysData.length > 0 ? delaysData.length : (childInfo.retards ?? 0);
 
   const interpretation = getAverageInterpretation(
     childInfo.moyenne,
     getWeakestSubject(childInfo.subjectAverages)
   );
-  const attendanceAlert = getAttendanceAlert(childInfo.absence);
+  const attendanceAlert = getAttendanceAlert(displayAbsences);
 
   return (
     <>
@@ -55,7 +69,7 @@ const ChildInfo = ({ childInfo }: ChildInfoProps) => {
                 {childInfo.prenom} {childInfo.nom}
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-3 sm:mb-2 text-sm sm:text-base">
-                Classe: {`${childInfo.classe.nom} ${childInfo.classe.niveau}`}
+                Classe: {`${childInfo.classe?.nom || childInfo.className || ""} ${childInfo.classe?.niveau || childInfo.classNiveau || ""}`}
               </p>
               <div className="flex items-center justify-center sm:justify-start space-x-4 sm:space-x-6">
                 <div className="text-center">
@@ -70,7 +84,7 @@ const ChildInfo = ({ childInfo }: ChildInfoProps) => {
                   className="text-center cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 p-2 rounded-lg transition-colors"
                   onClick={() => setShowAbsencesModal(true)}>
                   <div className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">
-                    {childInfo.absence}
+                    {displayAbsences}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Absence(s)</div>
                 </div>
@@ -78,7 +92,7 @@ const ChildInfo = ({ childInfo }: ChildInfoProps) => {
                   className="text-center cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
                   onClick={() => setShowDelaysModal(true)}>
                   <div className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">
-                    {childInfo.retards}
+                    {displayRetards}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Retard(s)</div>
                 </div>
@@ -101,7 +115,7 @@ const ChildInfo = ({ childInfo }: ChildInfoProps) => {
         onClose={() => setShowAbsencesModal(false)}
         absences={absencesData}
         studentId={childInfo.id}
-        classId={childInfo.classe?.id}
+        classId={childInfo.classe?.id || childInfo.classeId}
       />
 
       <DelaysModal

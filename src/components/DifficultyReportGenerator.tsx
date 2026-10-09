@@ -138,7 +138,7 @@ const DifficultyReportGenerator: React.FC<DifficultyReportGeneratorProps> = ({ a
 
             const notesByDiscipline = new Map<string, any[]>();
             relevantGrades.forEach((n: any) => {
-                const key = n.subject || n.discipline?.name || "Sans Nom";
+                const key = n.subject || n.discipline?.name || n.disciplineName || "Sans Nom";
                 if (!notesByDiscipline.has(key)) notesByDiscipline.set(key, []);
                 notesByDiscipline.get(key)!.push(n);
             });
@@ -167,7 +167,7 @@ const DifficultyReportGenerator: React.FC<DifficultyReportGeneratorProps> = ({ a
                     totalMoyenneCoef += moyenneCoef;
 
                     allGrades.push({
-                        discipline: discNotes[0].subject || "Matière",
+                        discipline: discNotes[0].subject || discNotes[0].discipline?.name || discNotes[0].disciplineName || "Matière",
                         devoir: parseFloat(avgDevoir.toFixed(2)),
                         composition: parseFloat(avgCompo.toFixed(2)),
                         moyenne,
@@ -183,7 +183,7 @@ const DifficultyReportGenerator: React.FC<DifficultyReportGeneratorProps> = ({ a
 
             const absenceDays = new Set();
             const retardDays = new Set();
-            (student.attendance || []).forEach((record: any) => {
+            (student.attendance || (student as any).school_attendances || (student as any).attendances || []).forEach((record: any) => {
                 const date = record.date ? record.date.split("T")[0] : "";
                 if (record.type === "ABSCENCE") absenceDays.add(date);
                 if (record.type === "RETARD") retardDays.add(date);
@@ -455,7 +455,7 @@ const DifficultyReportGenerator: React.FC<DifficultyReportGeneratorProps> = ({ a
             doc.text(discLines, colMid.discipline, discY, { align: "center" });
 
             doc.setFont(undefined!, "normal");
-            
+
             // Add numerical values to columns
             const midY = yPos + rowHeight / 2 + 1;
             doc.text(grade.devoir.toString(), colMid.devoir, midY, { align: "center" });

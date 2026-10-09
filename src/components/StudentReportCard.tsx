@@ -92,7 +92,7 @@ const StudentReportCard = memo(({
                                 </div>
                             </div>
                             {(() => {
-                                const absenceCount = student.attendance.filter((a: any) => a.type === "ABSCENCE").length;
+                                const absenceCount = (student.attendance || (student as any).school_attendances || (student as any).attendances || []).filter((a: any) => a.type === "ABSCENCE" || a.type === "ABSENCE").length;
                                 const alert = getAttendanceAlert(absenceCount);
                                 if (!alert) return null;
                                 return (
@@ -267,7 +267,7 @@ const StudentReportCard = memo(({
                         </TabsContent>
 
                         <TabsContent value="attendance">
-                            {student.attendance.length === 0 ? (
+                            {(student.attendance || (student as any).school_attendances || (student as any).attendances || []).length === 0 ? (
                                 <div className="text-center py-6 text-muted-foreground">
                                     <UserX className="w-10 h-10 mx-auto mb-3 opacity-50" />
                                     Aucun enregistrement
@@ -287,7 +287,7 @@ const StudentReportCard = memo(({
                                     </TableHeader>
 
                                     <TableBody>
-                                        {student.attendance.map((record: any, index: number) => (
+                                        {(student.attendance || (student as any).school_attendances || (student as any).attendances || []).map((record: any, index: number) => (
                                             <TableRow key={index}>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2">

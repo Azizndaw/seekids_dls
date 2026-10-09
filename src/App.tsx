@@ -25,6 +25,8 @@ import GeneralSchedule from "./pages/GeneralSchedule";
 import { SocketProvider } from "./socket/SocketContext";
 import SocketManager from "./socket/SocketManager";
 
+import ProtectedRoute from "./components/ProtectedRoute";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -38,21 +40,133 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              <Route path="/admin-communication" element={<AdminCommunication />} />
-              <Route path="/admin-security" element={<AdminSecurity />} />
-              <Route path="/admin-settings" element={<AdminSettings />} />
-              <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
-              <Route path="/teacher-attendance" element={<TeacherAttendance />} />
-              <Route path="/teacher-schedule" element={<TeacherSchedule />} />
-              <Route path="/teacher-grades" element={<TeacherGrades />} />
-              <Route path="/teacher-messages" element={<TeacherMessages />} />
-              <Route path="/teacher-settings" element={<TeacherSettings />} />
-              <Route path="/parent-dashboard" element={<ParentDashboard />} />
-              <Route path="/parent-settings" element={<ParentSettings />} />
-              <Route path="/admin-user-management" element={<UserManagement />} />
-              <Route path="/admin-school-reports" element={<SchoolReports />} />
-              <Route path="/admin-general-schedule" element={<GeneralSchedule />} />
+
+              {/* Admin Routes */}
+              <Route
+                path="/admin-dashboard"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-communication"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <AdminCommunication />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-security"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <AdminSecurity />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-settings"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <AdminSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-user-management"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <UserManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-school-reports"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <SchoolReports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin-general-schedule"
+                element={
+                  <ProtectedRoute requiredRole="administration">
+                    <GeneralSchedule />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Teacher Routes */}
+              <Route
+                path="/teacher-dashboard"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher-attendance"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherAttendance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher-schedule"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherSchedule />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher-grades"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherGrades />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher-messages"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherMessages />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher-settings"
+                element={
+                  <ProtectedRoute requiredRole="professeur">
+                    <TeacherSettings />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Parent Routes */}
+              <Route
+                path="/parent-dashboard"
+                element={
+                  <ProtectedRoute requiredRole="parent">
+                    <ParentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/parent-settings"
+                element={
+                  <ProtectedRoute requiredRole="parent">
+                    <ParentSettings />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

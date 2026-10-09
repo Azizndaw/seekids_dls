@@ -34,21 +34,33 @@ export const useAdminAuth = () => {
     try {
       // Hardcoded school for Dakar Leaders School
       const clientName = "dakar-leaders-school";
-      const response = await cleanhttpClient.post(
-        `/api/auth/login`,
-        {
-          email,
-          password,
-          schoolName: clientName,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      console.log("====== DEBUG PAYLOAD ======");
+      console.log("Phone/Email Payload =>", `"${email}"`);
+      console.log("Password Payload =>", `"${password}"`);
+      console.log("Role =>", `"${userRole}"`);
+      console.log("===========================");
 
-      const data = await response.data;
+      const response = await fetch(`https://seekids-api.serigneabdouazizndaw.workers.dev/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-School-Name": clientName,
+          "X-Academic-Year": localStorage.getItem("academicYear") || "2026-2027"
+        },
+        body: JSON.stringify({ email: email.trim(), password: password.trim(), schoolName: clientName, role: userRole })
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error(`Server returned no JSON data. Status: ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw { response: { status: response.status, data } };
+      }
+
       console.log("Login response data:", data);
 
       if (data?.token == null) {

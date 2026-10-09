@@ -37,7 +37,7 @@ const DelaysModal = ({ isOpen, onClose, delays }: DelaysModalProps) => {
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
                   <span className="font-medium">Matière :</span>
-                  <span>{delay.discipline.name}</span>
+                  <span>{(delay.discipline?.name || delay.disciplineName)}</span>
                 </div>
               </div>
             </div>

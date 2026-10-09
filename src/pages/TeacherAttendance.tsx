@@ -28,8 +28,9 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useGetCurrentTeacher } from "@/hooks/useUsers";
+import { useGetCurrentTeacher, useClasses } from "@/hooks/useUsers";
 import { useCreateStudentAttendance, useUpdateStudent } from "@/hooks/useStudents";
+import { useGetCoursByProfesseur } from "@/hooks/useCours";
 import { useAuth } from "@/hooks/useAuth";
 import { SocketContext } from "@/socket/SocketContext";
 import { generateAttendanceNotification } from "@/factories/notificationFactory";
@@ -51,7 +52,10 @@ const TeacherAttendance = () => {
   const createAttendanceMutation = useCreateStudentAttendance();
 
   const { authUser } = useAuth();
-  const { data: currentTeacher, isLoading, error } = useGetCurrentTeacher(authUser);
+  const { data: currentTeacher, isLoading: teacherLoading, error } = useGetCurrentTeacher(authUser);
+  const { data: currentCourses, isLoading: coursesLoading } = useGetCoursByProfesseur();
+  const { data: allClasses, isLoading: classesLoading } = useClasses();
+  const isLoading = teacherLoading || coursesLoading || classesLoading;
 
   const [selectedClassObject, setSelectedClassObject] = useState(null);
   const [selectedSubject, setSelectedSubject] = useState<string>();
@@ -71,6 +75,7 @@ const TeacherAttendance = () => {
     },
   ]);
   const [lateReason, setLateReason] = useState<{ [key: number]: string }>({});
+  const [courseContent, setCourseContent] = useState<string>("");
 
   /* === AJOUT: états du pop-up === */
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -86,23 +91,112 @@ const TeacherAttendance = () => {
     date: "",
   });
   const [disabledButton, setDisabledButton] = useState<boolean>(false);
+
+  // Helper to compute schedule time & session count based on date, class, and subject
+  const sessionInfo = React.useMemo(() => {
+    const DAYS_FR = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    if (!attendanceDate || !selectedClass || !currentCourses) {
+      return { timeStr: "08:00 - 10:00", numSessions: 2 };
+    }
+
+    const dayName = DAYS_FR[attendanceDate.getDay()];
+
+    // Find course matching class, subject and day of week
+    const courseMatch = currentCourses.find((c: any) => {
+      const cClassId = c.classe?.id || c.classeId;
+      const cSubjId = c.discipline?.id || c.disciplineId;
+      const cDay = (c.jour || "").toLowerCase().trim();
+
+      const matchesClass = cClassId === selectedClass;
+      const matchesSubj = !selectedSubject || cSubjId === selectedSubject;
+      const matchesDay = cDay === dayName.toLowerCase();
+
+      return matchesClass && matchesSubj && matchesDay;
+    }) || currentCourses.find((c: any) => {
+      const cClassId = c.classe?.id || c.classeId;
+      const cDay = (c.jour || "").toLowerCase().trim();
+      return cClassId === selectedClass && cDay === dayName.toLowerCase();
+    }) || currentCourses.find((c: any) => {
+      const cClassId = c.classe?.id || c.classeId;
+      return cClassId === selectedClass;
+    });
+
+    if (!courseMatch || !courseMatch.heure) {
+      return { timeStr: "08:00 - 10:00", numSessions: 2 };
+    }
+
+    const rawHeure = courseMatch.heure;
+    let timeStr = rawHeure;
+    let numSessions = 2;
+
+    if (rawHeure.includes("-")) {
+      const parts = rawHeure.split("-").map((p: string) => p.trim());
+      const getMinutes = (str: string) => {
+        const hMatch = str.match(/(\d+)[h:](\d+)/i) || str.match(/(\d+)/);
+        if (hMatch) {
+          const h = parseInt(hMatch[1] || "0");
+          const m = parseInt(hMatch[2] || "0");
+          return h * 60 + m;
+        }
+        return 0;
+      };
+
+      const startMins = getMinutes(parts[0]);
+      const endMins = getMinutes(parts[1]);
+      if (endMins > startMins) {
+        const diffHours = Math.max(1, Math.round((endMins - startMins) / 60));
+        numSessions = diffHours;
+      }
+      timeStr = rawHeure;
+    }
+
+    return { timeStr, numSessions };
+  }, [attendanceDate, selectedClass, selectedSubject, currentCourses]);
+
   const updateAttendance = (studentId: string, status: "present" | "absent" | "late") => {
     setStudents((prev) =>
       prev.map((student) => (student.id === studentId ? { ...student, status } : student))
     );
   };
-  let classes = [];
-
-  useEffect(() => {
-    if (classes?.length > 0) {
-      const defaultClass = classes[0];
-      setSelectedClassObject(defaultClass);
-    }
-  }, [classes]);
 
   const updateLateReason = (studentId: string, reason: string) => {
     setLateReason((prev) => ({ ...prev, [studentId]: reason }));
   };
+
+  const subjects = currentTeacher?.disciplines;
+  const classes = React.useMemo(() => {
+    if (!allClasses) return [];
+
+    // Class IDs from scheduled courses
+    const courseClassIds = currentCourses ? currentCourses.map((c: any) => c.classe?.id || c.classeId) : [];
+
+    // Class IDs from direct teacher assignments
+    const assignedClassIds = allClasses ? allClasses.filter((c: any) => c.professeurs?.some((p: any) => p.professeurId === authUser?.id)).map((c: any) => c.id) : [];
+
+    const uniqueClassIds = Array.from(new Set([...courseClassIds, ...assignedClassIds].filter(Boolean)));
+    return uniqueClassIds.map(id => {
+      const cls = allClasses.find((c: any) => c.id === id);
+      return cls ? { classeId: id, classe: cls } : null;
+    }).filter(Boolean);
+  }, [allClasses, currentCourses, currentTeacher]);
+
+  // Auto-select initial class and subject
+  useEffect(() => {
+    if (subjects && subjects.length > 0 && !selectedSubject) {
+      setSelectedSubject(subjects[0].id);
+    }
+  }, [subjects, selectedSubject]);
+
+  useEffect(() => {
+    if (classes && classes.length > 0 && !selectedClass) {
+      const firstClass = classes[0] as any;
+      setSelectedClass(firstClass.classeId);
+      setSelectedClassObject(firstClass);
+      if (firstClass.classe?.students) {
+        setStudents(firstClass.classe.students);
+      }
+    }
+  }, [classes, selectedClass]);
 
   if (isLoading) {
     return (
@@ -114,9 +208,6 @@ const TeacherAttendance = () => {
   if (error) return <div>Error loading data</div>;
   if (!currentTeacher) return null;
 
-  const subjects = currentTeacher?.disciplines;
-  classes = currentTeacher?.classes;
-
   const validateAttendance = async () => {
     let absentStudents = students.filter((s) => s.status === "absent");
     let lateStudents = students.filter((s) => s.status === "late");
@@ -127,13 +218,23 @@ const TeacherAttendance = () => {
     const currentSubject = subjects?.find((s) => s.id === selectedSubject);
     setDisabledButton(true);
 
+    if (!courseContent.trim()) {
+      toast({
+        title: "Contenu du cours obligatoire",
+        description: "Veuillez remplir le contenu du cours (cahier de texte) avant de valider l'émargement.",
+        variant: "destructive",
+      });
+      setDisabledButton(false);
+      return;
+    }
+
     const notificationCount = absentStudents.length + lateStudents.length;
 
     const summaryDate = format(attendanceDate, "dd/MM/yyyy", { locale: fr });
     setLastSummary({
       count: notificationCount,
-      subject: currentSubject?.nom,
-      className: currentClass?.name,
+      subject: currentSubject?.nom || currentSubject?.name,
+      className: (currentClass as any)?.classe?.nom || (currentClass as any)?.name || "",
       date: summaryDate,
     });
     setConfirmOpen(true);
@@ -149,15 +250,14 @@ const TeacherAttendance = () => {
 
       toast({
         title: "Présences validées",
-        description: `Aucune notification nécessaire - Tous les élèves de ${
-          currentClass?.classe.niveau
-        } ${currentClass?.classe.nom} sont présents en ${currentSubject?.name} le ${format(
-          attendanceDate,
-          "dd/MM/yyyy",
-          {
-            locale: fr,
-          }
-        )}`,
+        description: `Aucune notification nécessaire - Tous les élèves de ${currentClass?.classe.niveau
+          } ${currentClass?.classe.nom} sont présents en ${currentSubject?.name} le ${format(
+            attendanceDate,
+            "dd/MM/yyyy",
+            {
+              locale: fr,
+            }
+          )}`,
       });
       setDisabledButton(false);
       return;
@@ -166,12 +266,12 @@ const TeacherAttendance = () => {
     // Envoyer notifications pour les absents
     absentStudents.forEach(async (student) => {
       const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
-        nom: student.nom,
-        prenom: student.prenom,
-        abscence: student.abscence + 1,
-        moyenne: student.moyenne,
-        dateOfBirth: student.dateOfBirth,
-        retards: student.retards,
+        nom: student.nom || "Inconnu",
+        prenom: student.prenom || "Inconnu",
+        abscence: (student.absence ?? student.abscence ?? 0) + 1,
+        moyenne: student.moyenne || 0,
+        dateOfBirth: student.dateOfBirth || new Date().toISOString(),
+        retards: student.retards || 0,
         id: student.id,
       });
       const msg = generateAttendanceNotification({
@@ -200,8 +300,7 @@ const TeacherAttendance = () => {
       }
 
       console.log(
-        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour absence en ${
-          currentSubject?.name
+        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour absence en ${currentSubject?.name
         } le ${format(attendanceDate, "dd/MM/yyyy", { locale: fr })}`
       );
     });
@@ -210,12 +309,12 @@ const TeacherAttendance = () => {
     lateStudents.forEach(async (student) => {
       const reason = lateReason[student.id] || "Aucun motif spécifié";
       const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
-        nom: student.nom,
-        prenom: student.prenom,
-        abscence: student.abscence,
-        moyenne: student.moyenne,
-        dateOfBirth: student.dateOfBirth,
-        retards: student.retards + 1,
+        nom: student.nom || "Inconnu",
+        prenom: student.prenom || "Inconnu",
+        abscence: student.absence ?? student.abscence ?? 0,
+        moyenne: student.moyenne || 0,
+        dateOfBirth: student.dateOfBirth || new Date().toISOString(),
+        retards: (student.retards ?? 0) + 1,
         id: student.id,
       });
       const msg = generateAttendanceNotification({
@@ -242,22 +341,20 @@ const TeacherAttendance = () => {
         });
       }
       console.log(
-        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour retard en ${
-          currentSubject?.name
+        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour retard en ${currentSubject?.name
         } le ${format(attendanceDate, "dd/MM/yyyy", { locale: fr })} - Motif: ${reason}`
       );
     });
     toast({
       title: "Présences validées",
-      description: `${notificationCount} notification(s) envoyée(s) aux parents pour ${
-        currentSubject?.name
-      } - ${currentClass?.classe.niveau} ${currentClass?.classe.nom} du ${format(
-        attendanceDate,
-        "dd/MM/yyyy",
-        {
-          locale: fr,
-        }
-      )}`,
+      description: `${notificationCount} notification(s) envoyée(s) aux parents pour ${currentSubject?.name
+        } - ${currentClass?.classe.niveau} ${currentClass?.classe.nom} du ${format(
+          attendanceDate,
+          "dd/MM/yyyy",
+          {
+            locale: fr,
+          }
+        )}`,
     });
     lateStudents = [];
     absentStudents = [];
@@ -384,138 +481,152 @@ const TeacherAttendance = () => {
           </div>
         </div>
 
-        {/* Subject Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GraduationCap className="w-5 h-5" />
-              Sélection de la matière
-            </CardTitle>
-            <CardDescription>
-              Choisissez la matière que vous enseignez pour cette session
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Sélectionner une matière" />
-              </SelectTrigger>
-              <SelectContent>
-                {subjects?.map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {selectedSubject && !selectedClass && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Sélection de la classe</CardTitle>
-              <CardDescription>
-                Choisissez la classe pour {subjects?.find((s) => s.id === selectedSubject)?.name}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {classes
-                  .filter((classe) => {
-                    const currentSubject = classes?.find((s) => s.id === selectedClass);
-                    return (
-                      classe.niveau === currentSubject?.niveau && classe.nom === currentSubject?.nom
-                    );
-                  })
-                  .map((classe) => (
-                    <Card
-                      key={classe.classeId}
-                      className="cursor-pointer hover:shadow-lg transition-shadow"
-                      onClick={() => handleClassChange(classe.classeId)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                            <Users className="w-5 h-5 text-blue-600 dark:text-blue-300" />
-                          </div>
-                          <div>
-                            <h3 className="font-medium">
-                              {classe.classe.niveau} {classe.classe.nom}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              {classe.classe.students?.length} élèves
-                            </p>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="mt-2 text-xs">
-                          Sélectionner
-                        </Badge>
-                      </CardContent>
-                    </Card>
-                  ))}
+        {/* Top Control Bar: Class & Subject Selectors */}
+        <Card className="bg-muted/30">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+              {/* Classe Selector */}
+              <div className="w-full sm:w-auto">
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Classe
+                </label>
+                <Select value={selectedClass || ""} onValueChange={handleClassChange}>
+                  <SelectTrigger className="w-full sm:w-56 bg-white dark:bg-gray-800">
+                    <SelectValue placeholder="Sélectionner une classe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((c: any) => {
+                      const label = `${c.classe?.niveau || c.classeNiveau || ""} ${c.classe?.nom || c.classeName || ""}`.trim();
+                      return (
+                        <SelectItem key={c.classeId} value={c.classeId}>
+                          {label || `Classe ${c.classeId}`}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {selectedSubject && selectedClass && (
-          <div className="space-y-4">
-            {/* Navigation */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedClass(null)}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Changer de classe
-              </Button>
-              <div>
-                <h2 className="text-xl font-semibold">
-                  {classes.find((c) => c.classeId === selectedClass)?.niveau} -{" "}
-                  {subjects?.find((s) => s.id === selectedSubject)?.name}
-                </h2>
+              {/* Matière Selector */}
+              <div className="w-full sm:w-auto">
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  Matière (Automatique)
+                </label>
+                <Select value={selectedSubject || ""} onValueChange={setSelectedSubject}>
+                  <SelectTrigger className="w-full sm:w-56 bg-white dark:bg-gray-800">
+                    <SelectValue placeholder="Sélectionner une matière" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects?.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* Date Selection */}
-            <Card>
+            {/* Quick Badge info */}
+            <div className="text-right text-xs text-muted-foreground hidden lg:block">
+              {students.length} élève{students.length > 1 ? "s" : ""} enregistré{students.length > 1 ? "s" : ""}
+            </div>
+          </CardContent>
+        </Card>
+
+        {selectedClass && (
+          <div className="space-y-4">
+            {/* Émargement & Fiche de Cours (Automatique) */}
+            <Card className="border-blue-200 bg-blue-50/20 dark:bg-blue-950/10">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5" />
-                  Date de l'appel
+                <CardTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  Fiche d'Émargement & Saisie du Cours
                 </CardTitle>
                 <CardDescription>
-                  Sélectionnez la date pour laquelle vous faites l'appel
+                  L'horaire et le nombre de séances sont détectés automatiquement à partir de votre emploi du temps.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-64 justify-start text-left font-normal",
-                          !attendanceDate && "text-muted-foreground"
-                        )}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {attendanceDate
-                          ? format(attendanceDate, "PPP", { locale: fr })
-                          : "Sélectionner une date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={attendanceDate}
-                        onSelect={(date) => date && setAttendanceDate(date)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Date de l'appel */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      Date de la séance *
+                    </label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal bg-white dark:bg-gray-800 border-gray-300",
+                            !attendanceDate && "text-muted-foreground"
+                          )}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {attendanceDate
+                            ? format(attendanceDate, "PPP", { locale: fr })
+                            : "Sélectionner une date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={attendanceDate}
+                          onSelect={(date) => date && setAttendanceDate(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Horaire (Fixe / Grisé) */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      Horaire du cours (Automatique)
+                    </label>
+                    <Input
+                      value={sessionInfo.timeStr}
+                      readOnly
+                      title="Horaire détecté d'après le planning"
+                      className="bg-gray-100 dark:bg-gray-800 font-semibold text-center cursor-not-allowed border-gray-300"
+                    />
+                  </div>
+
+                  {/* Nb de séances (Fixe / Grisé) */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                      Nombre de séances (Automatique)
+                    </label>
+                    <Input
+                      value={`${sessionInfo.numSessions} séance${sessionInfo.numSessions > 1 ? "s" : ""} (${sessionInfo.numSessions}h)`}
+                      readOnly
+                      title="Nombre de séances calculé d'après la durée"
+                      className="bg-gray-100 dark:bg-gray-800 font-semibold text-center cursor-not-allowed border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                {/* Contenu du cours (Cahier de texte) - OBLIGATOIRE */}
+                <div>
+                  <label className="text-xs font-semibold text-foreground block mb-1">
+                    Contenu du cours (Cahier de texte) <span className="text-red-600 font-bold">* Obligatoire</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Saisissez le résumé du cours (ex: Chapitre 2 - Leçon et exercices 1 à 4)..."
+                    value={courseContent}
+                    onChange={(e) => setCourseContent(e.target.value)}
+                    className="w-full p-3 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
                   <Button
                     disabled={disabledButton}
                     onClick={validateAttendance}
-                    className="bg-green-600 hover:bg-green-700 text-white">
+                    className="bg-green-600 hover:bg-green-700 text-white font-medium px-6">
                     <Send className="w-4 h-4 mr-2" />
-                    Valider et Notifier
+                    Valider l'Émargement et Notifier
                   </Button>
                 </div>
               </CardContent>
@@ -637,7 +748,7 @@ const TeacherAttendance = () => {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 

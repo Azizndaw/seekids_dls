@@ -11,8 +11,8 @@ let keep = false;
 for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    if (line.startsWith('-- Table:')) {
-        currentTable = line.replace('-- Table:', '').trim();
+    if (line.startsWith('-- ') && line.includes(' (')) {
+        currentTable = line.replace('-- ', '').split(' (')[0].trim();
         keep = allowedTables.includes(currentTable);
         if (keep) newSeed += line + '\n';
         continue;

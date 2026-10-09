@@ -62,6 +62,12 @@ interface ClasseTabProps {
     created_at?: string;
     professeurs?: Array<{
       professeurId: string;
+      professeur?: {
+        id?: string;
+        nom?: string;
+        prenom?: string;
+        email?: string;
+      }
     }>;
   }>;
 }
@@ -353,7 +359,7 @@ const ClassManagement: React.FC<ClasseTabProps> = ({ classes, users }) => {
                           classe.professeurs.map((assignment) => (
                             <div key={assignment.professeurId} className="flex items-center gap-1">
                               <Badge variant="outline" className="text-xs">
-                                {assignment.professeur.prenom} {assignment.professeur.nom}
+                                {assignment.professeur?.prenom || "Inconnu"} {assignment.professeur?.nom || ""}
                               </Badge>
                               <Button
                                 variant="ghost"

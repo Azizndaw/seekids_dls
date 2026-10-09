@@ -6,6 +6,7 @@ const socket = io(backendUrl, {
     token: localStorage.getItem("accessToken"),
   },
   transports: ["websocket"],
+  autoConnect: false,
 });
 
 export default socket;

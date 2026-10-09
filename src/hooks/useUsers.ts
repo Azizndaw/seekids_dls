@@ -23,6 +23,7 @@ export interface Student {
   prenom: string;
   classeId: string;
   dateOfBirth?: string;
+  lieu_naissance?: string;
   parentId?: string;
   schoolId: string;
   created_at?: string;
@@ -50,9 +51,10 @@ export interface TeacherClassAssignment {
 
 export const useUsers = () => {
   const { authUser } = useAuth();
+  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
 
   return useQuery({
-    queryKey: ["users"],
+    queryKey: ["users", academicYear],
     queryFn: async () => {
       console.log("Fetching users...");
 
@@ -78,9 +80,10 @@ export const useUsers = () => {
 
 export const useStudents = () => {
   const { authUser } = useAuth();
+  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
 
   return useQuery({
-    queryKey: ["students"],
+    queryKey: ["students", academicYear],
     queryFn: async () => {
       console.log("Fetching students...");
 
@@ -105,9 +108,10 @@ export const useStudents = () => {
 
 export const useClasses = () => {
   const { authUser } = useAuth();
+  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
 
   return useQuery({
-    queryKey: ["classes"],
+    queryKey: ["classes", academicYear],
     queryFn: async () => {
       console.log("Fetching classes...");
 
@@ -179,7 +183,7 @@ export const useCreateUser = () => {
         email: userData.email,
         telephone: userData.telephone,
         roles: [userData.role],
-        password: userData.password ?? "Bonjour123",
+        password: userData.password ?? (userData.role === "TEACHER" ? "Seekids2027" : "Bonjour123"),
         schoolId: authUser?.schoolId,
         disciplineIds: userData.disciplineIds,
       };
@@ -351,6 +355,7 @@ export const useCreateStudent = () => {
         nom: studentData.nom,
         prenom: studentData.prenom,
         dateOfBirth: studentData.dateOfBirth,
+        lieu_naissance: studentData.lieu_naissance || "Dakar",
         schoolId: authUser.schoolId,
         classe: studentData.classeId,
         parentId: studentData.parentId,
@@ -602,7 +607,13 @@ export const useAllTeachers = (authUser) => {
           },
         });
 
-        return response.data;
+        const allUsers = response.data || [];
+        return allUsers.filter((u: any) => {
+          if (typeof u.role === "string") return u.role.includes("TEACHER");
+          if (Array.isArray(u.roles)) return u.roles.includes("TEACHER");
+          if (Array.isArray(u.role)) return u.role.includes("TEACHER");
+          return false;
+        });
       } catch (error) {
         const message =
           error.response?.data?.reason || "Erreur lors de la récupération du professeur";
@@ -779,7 +790,13 @@ export const useAllAdmins = (authUser) => {
           },
         });
 
-        return response.data;
+        const allUsers = response.data || [];
+        return allUsers.filter((u: any) => {
+          if (typeof u.role === "string") return u.role.includes("ADMIN");
+          if (Array.isArray(u.roles)) return u.roles.includes("ADMIN");
+          if (Array.isArray(u.role)) return u.role.includes("ADMIN");
+          return false;
+        });
       } catch (error) {
         const message =
           error.response?.data?.reason || "Erreur lors de la récupération du professeur";

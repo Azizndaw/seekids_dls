@@ -112,7 +112,7 @@ const BulletinGenerator: React.FC<BulletinGeneratorProps> = ({ averageDto }) => 
 
       const absenceDays = new Set();
       const retardDays = new Set();
-      const attendanceRecords = student.attendance || [];
+      const attendanceRecords = student.attendance || student.school_attendances || student.attendances || [];
       attendanceRecords.forEach((record: any) => {
         const date = record.date ? record.date.split("T")[0] : "";
         if (record.type === "ABSCENCE") absenceDays.add(date);

@@ -9,9 +9,9 @@ interface ProtectedRouteProps {
   requiredRole?: 'administration' | 'professeur' | 'parent';
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requiredRole 
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requiredRole
 }) => {
   const { isAuthenticated, authUser, loading } = useAuth();
 
@@ -24,11 +24,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated || !authUser) {
-    return <Navigate to="/universal-auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
-  if (requiredRole && authUser.role !== requiredRole) {
-    return <Navigate to="/unauthorized" replace />;
+  if (requiredRole) {
+    const roles = Array.isArray(authUser.role) ? authUser.role : [authUser.role];
+    const hasRole = roles.some((r: string) => {
+      if (requiredRole === "administration") return r === "ADMIN" || r === "administration";
+      if (requiredRole === "professeur") return r === "TEACHER" || r === "professeur";
+      if (requiredRole === "parent") return r === "PARENT" || r === "parent";
+      return false;
+    });
+
+    if (!hasRole) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

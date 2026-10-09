@@ -118,7 +118,7 @@ export const useEvaluationsByClasse = (classeId: string) => {
     queryKey: ["evaluations", "classe", classeId],
     queryFn: async () => {
       const { data } = await httpClient.get(
-        `/api/schools/${schoolId}/classes/${classeId}/evaluations`,
+        `/api/schools/${schoolId}/evaluations/classe/${classeId}`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
         }
@@ -138,7 +138,7 @@ export const useEvaluationsByTeacher = (teacherId: string) => {
     queryKey: ["evaluations", "teacher", teacherId],
     queryFn: async () => {
       const { data } = await httpClient.get(
-        `/api/schools/${schoolId}/teachers/${teacherId}/evaluations`,
+        `/api/schools/${schoolId}/evaluations/professeur/${teacherId}`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
         }

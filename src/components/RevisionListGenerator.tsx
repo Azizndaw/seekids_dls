@@ -73,14 +73,14 @@ const RevisionListGenerator: React.FC<RevisionListGeneratorProps> = ({ averageDt
 
             const notesByDiscipline = new Map<string, any[]>();
             relevantGrades.forEach((n: any) => {
-                const key = n.subject || n.discipline?.name || "Sans Nom";
+                const key = n.subject || n.discipline?.name || n.disciplineName || "Sans Nom";
                 if (!notesByDiscipline.has(key)) notesByDiscipline.set(key, []);
                 notesByDiscipline.get(key)!.push(n);
             });
 
             const weakSubjects: string[] = [];
             const weakGrades: string[] = [];
-            
+
             let totalMoyenneCoef = 0;
             let totalCoef = 0;
 
@@ -96,7 +96,7 @@ const RevisionListGenerator: React.FC<RevisionListGeneratorProps> = ({ averageDt
 
                 const moyenneSubject = parseFloat(((avgDevoir + avgCompo) / 2).toFixed(2));
                 const coef = discNotes[0]?.coefficient || 1;
-                
+
                 totalMoyenneCoef += moyenneSubject * coef;
                 totalCoef += coef;
 
@@ -228,7 +228,7 @@ const RevisionListGenerator: React.FC<RevisionListGeneratorProps> = ({ averageDt
         const finalY = (doc as any).lastAutoTable.finalY + 12;
 
         const signatureY = finalY > 265 ? 270 : finalY;
-        
+
         doc.setFontSize(10);
         doc.setFont(undefined, "bold");
         doc.text("Le Directeur des Études", 35, signatureY, { align: "center" });

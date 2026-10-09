@@ -44,7 +44,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useGetCurrentTeacher } from "@/hooks/useUsers";
+import { useGetCurrentTeacher, useClasses } from "@/hooks/useUsers";
 import { useAuth } from "@/hooks/useAuth";
 import {
   convertGrades,
@@ -58,11 +58,182 @@ import {
   useEvaluationsByTeacher,
   useUpdateEvaluation,
 } from "@/hooks/use-evaluation";
+import { useGetCoursByProfesseur } from "@/hooks/useCours";
 import { SocketContext } from "@/socket/SocketContext";
 
 type HomeworkEntry = {
   grade: number;
   appreciation?: string;
+};
+
+// Function to get fixed coefficient based on class name and subject/discipline name (from official Senegal matrix)
+const getFixedCoefficient = (classNameStr: string, subjectNameStr: string): number => {
+  if (!classNameStr || !subjectNameStr) return 2;
+
+  const c = classNameStr.toLowerCase();
+  const s = subjectNameStr.toLowerCase();
+
+  const isFr = s.includes("français") || s.includes("francais") || s.includes("frç") || s.includes("frc");
+  const isAng = s.includes("anglais") || s.includes("ang");
+  const isMath = s.includes("math");
+  const isHG = s.includes("histoire") || s.includes("géographie") || s.includes("geographie") || s.includes("hg");
+  const isEC = s.includes("civique") || s.includes("religieuse") || s.includes("ec") || s.includes("ed.");
+  const isSVT = s.includes("svt") || s.includes("vie");
+  const isSP = s.includes("physique") || s.includes("chimie") || s.includes("sp") || s.includes("pc");
+  const isArabe = s.includes("arabe");
+  const isEsp = s.includes("espagnol") || s.includes("esp");
+  const isEco = s.includes("économie") || s.includes("economie") || s.includes("eco");
+  const isEPS = s.includes("eps") || s.includes("sport");
+  const isPhilo = s.includes("philo");
+
+  const is6e = c.includes("6e") || c.includes("6ème") || c.includes("6eme");
+  const is5e = c.includes("5e") || c.includes("5ème") || c.includes("5eme");
+  const is4e = c.includes("4e") || c.includes("4ème") || c.includes("4eme");
+  const is3e = c.includes("3e") || c.includes("3ème") || c.includes("3eme");
+
+  const is2ndS = (c.includes("2nd") || c.includes("2nde") || c.includes("seconde")) && (c.includes("s") || !c.includes("l"));
+  const is2ndL = (c.includes("2nd") || c.includes("2nde") || c.includes("seconde")) && c.includes("l");
+
+  const is1erS2 = (c.includes("1er") || c.includes("1ère") || c.includes("premiere")) && c.includes("s");
+  const is1erL2 = (c.includes("1er") || c.includes("1ère") || c.includes("premiere")) && (c.includes("l2") || c.includes("l 2"));
+  const is1erL1 = (c.includes("1er") || c.includes("1ère") || c.includes("premiere")) && (c.includes("l1") || c.includes("l'") || c.includes("l 1"));
+
+  const isTS2 = (c.includes("tle") || c.includes("terminale") || c.includes("t ")) && c.includes("s");
+  const isTL1 = (c.includes("tle") || c.includes("terminale") || c.includes("t ")) && (c.includes("l1") || c.includes("l'") || c.includes("l 1"));
+  const isTL2 = (c.includes("tle") || c.includes("terminale") || c.includes("t ")) && (c.includes("l2") || c.includes("l 2"));
+
+  if (is6e || is5e) {
+    if (isFr) return 4;
+    if (isAng) return 2;
+    if (isMath) return 3;
+    if (isHG) return 2;
+    if (isEC) return 1;
+    if (isSVT) return 2;
+    if (isEPS) return 2;
+    return 2;
+  }
+
+  if (is4e || is3e) {
+    if (isFr) return 4;
+    if (isAng) return 2;
+    if (isMath) return 3;
+    if (isHG) return 2;
+    if (isEC) return 1;
+    if (isSVT) return 2;
+    if (isSP) return 2;
+    if (isArabe) return 2;
+    if (isEsp) return 2;
+    if (isEPS) return 2;
+    return 2;
+  }
+
+  if (is2ndS) {
+    if (isFr) return 3;
+    if (isAng) return 3;
+    if (isMath) return 5;
+    if (isHG) return 2;
+    if (isSVT) return 5;
+    if (isSP) return 5;
+    if (isArabe) return 3;
+    if (isEsp) return 3;
+    if (isEco) return 2;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (is2ndL) {
+    if (isFr) return 4;
+    if (isAng) return 3;
+    if (isMath) return 3;
+    if (isHG) return 3;
+    if (isSVT) return 2;
+    if (isSP) return 2;
+    if (isArabe) return 3;
+    if (isEsp) return 3;
+    if (isEco) return 2;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (is1erS2) {
+    if (isFr) return 3;
+    if (isAng) return 2;
+    if (isMath) return 5;
+    if (isHG) return 2;
+    if (isSVT) return 6;
+    if (isSP) return 6;
+    if (isArabe) return 2;
+    if (isEsp) return 2;
+    if (isEco) return 2;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (is1erL2) {
+    if (isFr) return 5;
+    if (isAng) return 4;
+    if (isMath) return 3;
+    if (isHG) return 6;
+    if (isSVT) return 2;
+    if (isSP) return 2;
+    if (isArabe) return 4;
+    if (isEsp) return 4;
+    if (isEco) return 2;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (is1erL1) {
+    if (isFr) return 6;
+    if (isAng) return 4;
+    if (isMath) return 3;
+    if (isHG) return 2;
+    if (isArabe) return 4;
+    if (isEsp) return 4;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (isTS2) {
+    if (isPhilo) return 2;
+    if (isFr) return 3;
+    if (isAng) return 2;
+    if (isMath) return 5;
+    if (isHG) return 2;
+    if (isSVT) return 6;
+    if (isSP) return 6;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (isTL1) {
+    if (isPhilo) return 4;
+    if (isFr) return 6;
+    if (isAng) return 4;
+    if (isMath) return 2;
+    if (isHG) return 2;
+    if (isArabe) return 4;
+    if (isEsp) return 4;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  if (isTL2) {
+    if (isPhilo) return 6;
+    if (isFr) return 5;
+    if (isAng) return 4;
+    if (isMath) return 2;
+    if (isHG) return 6;
+    if (isSVT) return 2;
+    if (isSP) return 2;
+    if (isArabe) return 4;
+    if (isEsp) return 4;
+    if (isEco) return 2;
+    if (isEPS) return 1;
+    return 2;
+  }
+
+  return 2;
 };
 
 /* ======================= BULLE ROUGE ERREUR ======================= */
@@ -199,9 +370,26 @@ const TeacherGrades = () => {
   const navigate = useNavigate();
   const { authUser } = useAuth();
   const { socket } = useContext(SocketContext);
-  const { data: currentTeacher } = useGetCurrentTeacher(authUser);
-  const classes = currentTeacher?.classes;
+  const { data: currentTeacher, isLoading: teacherLoading } = useGetCurrentTeacher(authUser);
+  const { data: currentCourses, isLoading: coursesLoading } = useGetCoursByProfesseur();
+  const { data: allClasses, isLoading: classesLoading } = useClasses();
   const subjects = currentTeacher?.disciplines;
+
+  const classes = React.useMemo(() => {
+    if (!allClasses) return [];
+
+    // Class IDs from scheduled courses
+    const courseClassIds = currentCourses ? currentCourses.map((c: any) => c.classe?.id || c.classeId) : [];
+
+    // Class IDs from direct teacher assignments
+    const assignedClassIds = allClasses ? allClasses.filter((c: any) => c.professeurs?.some((p: any) => p.professeurId === authUser?.id)).map((c: any) => c.id) : [];
+
+    const uniqueClassIds = Array.from(new Set([...courseClassIds, ...assignedClassIds].filter(Boolean)));
+    return uniqueClassIds.map(id => {
+      const cls = allClasses.find((c: any) => c.id === id);
+      return cls ? { classeId: id, classe: cls } : null;
+    }).filter(Boolean);
+  }, [allClasses, currentCourses, authUser?.id]);
 
   const [selectedClass, setSelectedClass] = useState("all");
   const [selectedClassObject, setSelectedClassObject] = useState(null);
@@ -228,11 +416,13 @@ const TeacherGrades = () => {
   const createNoteMutation = useCreateNote();
   const updateNoteMutation = useUpdateNote();
   const { data: allGradesByTeacher } = useGetNotesByTeacherId(authUser?.id);
+  const todayStr = new Date().toISOString().split("T")[0];
+
   // Notes info générales pour devoir
   const [formData, setHomeworkFormData] = useState({
-    title: "",
-    date: "",
-    coef: null,
+    title: "Devoir 1",
+    date: todayStr,
+    coef: "2",
   });
 
   const handleChange = (e) => {
@@ -262,7 +452,7 @@ const TeacherGrades = () => {
     });
   };
 
-  const [selectedSemester, setSelectedSemester] = useState("Semestre 1");
+  const [selectedSemester, setSelectedSemester] = useState<"Semestre 1" | "Semestre 2">("Semestre 1");
 
   // Historique des évaluations envoyées
   const [sentEvaluations, setSentEvaluations] = useState([]);
@@ -411,7 +601,8 @@ const TeacherGrades = () => {
       // Find class name for better message if possible, or just use ID if we don't have the object handy.
       // We can try to find it in classes list:
       const clsObj = classes.find((c) => c.classeId === evaluationClass);
-      const clsName = clsObj ? `${clsObj.classe.niveau} ${clsObj.classe.nom}` : "une classe";
+      const clsAny = clsObj as any;
+      const clsName = clsAny ? `${(clsAny.classe?.niveau || clsAny.classeNiveau || clsAny.classNiveau || "")} ${(clsAny.classe?.nom || clsAny.classeName || clsAny.className || "")}` : "une classe";
       const subObj = subjects.find((s) => s.id === selectedSubject);
       const subName = subObj ? subObj.name : "une matière";
 
@@ -466,13 +657,40 @@ const TeacherGrades = () => {
   }, [allEvaluations]);
 
   useEffect(() => {
+    if (subjects && subjects.length > 0 && !selectedSubject) {
+      setSelectedSubject(subjects[0].id);
+    }
+  }, [subjects, selectedSubject]);
+
+  useEffect(() => {
     if (classes?.length > 0) {
       const defaultClass = classes[0].classe;
       setSelectedClassObject(defaultClass);
     }
   }, [classes]);
 
-  if (!subjects || !classes || !currentTeacher || !allGradesByTeacher || !allEvaluations) {
+  useEffect(() => {
+    if (selectedClass && selectedSubject && classes && subjects) {
+      const currentClassObj = classes.find((c) => c.classeId === selectedClass);
+      const cAny = currentClassObj as any;
+      const classNameStr = cAny
+        ? `${(cAny.classe?.niveau || cAny.classeNiveau || cAny.classNiveau || "")} ${(cAny.classe?.nom || cAny.classeName || cAny.className || "")}`
+        : "";
+      const currentSubjectObj = subjects.find((s) => s.id === selectedSubject);
+      const subjectNameStr = currentSubjectObj ? currentSubjectObj.name : "";
+
+      const fixedCoef = getFixedCoefficient(classNameStr, subjectNameStr);
+
+      setHomeworkFormData((prev) => ({
+        ...prev,
+        coef: fixedCoef.toString(),
+        date: prev.date || todayStr,
+        title: prev.title || "Devoir 1",
+      }));
+    }
+  }, [selectedClass, selectedSubject, classes, subjects, todayStr]);
+
+  if (teacherLoading || coursesLoading || classesLoading || !allGradesByTeacher || !allEvaluations) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -575,7 +793,7 @@ const TeacherGrades = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {classes.map((cl) => {
-                          const className = `${cl.classe.niveau} ${cl.classe.nom}`;
+                          const className = `${(cl.classe?.niveau || cl.classeNiveau || cl.classNiveau)} ${(cl.classe?.nom || cl.classeName || cl.className)}`;
                           return (
                             <SelectItem key={cl.classeId} value={cl.classeId}>
                               {className} - {cl.classe.students?.length} élèves
@@ -615,7 +833,7 @@ const TeacherGrades = () => {
                           <div className="flex flex-wrap gap-4">
                             <Input
                               name="title"
-                              placeholder="Titre du devoir *"
+                              placeholder="Titre du devoir (ex: Devoir 1)"
                               value={formData.title}
                               onChange={handleChange}
                               className="flex-1 min-w-[200px]"
@@ -623,7 +841,7 @@ const TeacherGrades = () => {
 
                             <Input
                               name="date"
-                              placeholder="Date *"
+                              placeholder="Date"
                               type="date"
                               value={formData.date}
                               onChange={handleChange}
@@ -633,23 +851,26 @@ const TeacherGrades = () => {
                             <Input
                               name="coef"
                               type="number"
-                              placeholder="Coef. *"
+                              placeholder="Coef."
                               value={formData.coef}
-                              onChange={handleChange}
-                              className="w-20 min-w-[80px]"
+                              readOnly
+                              title="Le coefficient est fixe selon le niveau et la matière"
+                              className="w-24 min-w-[90px] bg-gray-100 font-semibold cursor-not-allowed text-center"
                             />
 
                             {/* Use a normal div instead of CardContent here — CardContent has fixed padding/margin */}
                             <div className="w-64 min-w-[200px]">
-                              <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-                                <SelectTrigger className="w-full">
+                              <Select
+                                value={selectedSemester}
+                                onValueChange={(val) => setSelectedSemester(val as "Semestre 1" | "Semestre 2")}>
+                                <SelectTrigger className="w-full sm:w-48 bg-white border-2">
                                   <SelectValue placeholder="Sélectionner un semestre" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem key="1" value="Semestre 1">
+                                  <SelectItem key="Semestre 1" value="Semestre 1">
                                     Semestre 1
                                   </SelectItem>
-                                  <SelectItem key="2" value="Semestre 2">
+                                  <SelectItem key="Semestre 2" value="Semestre 2">
                                     Semestre 2
                                   </SelectItem>
                                 </SelectContent>
@@ -730,39 +951,42 @@ const TeacherGrades = () => {
                           <div className="flex gap-4">
                             <Input
                               name="title"
-                              placeholder="Titre du devoir *"
+                              placeholder="Titre de la composition"
                               value={formData.title}
                               onChange={handleChange}
-                              className="flex-1 border-red-500 min-w-[200px]"
+                              className="flex-1 min-w-[200px]"
                             />
                             <Input
                               name="date"
-                              placeholder="Date *"
+                              placeholder="Date"
                               type="date"
                               value={formData.date}
                               onChange={handleChange}
-                              className="w-40 border-red-500"
+                              className="w-40"
                             />
                             <Input
                               type="number"
                               name="coef"
-                              placeholder="Coef. *"
+                              placeholder="Coef."
                               value={formData.coef}
-                              onChange={handleChange}
-                              className="w-20 border-red-500"
+                              readOnly
+                              title="Le coefficient est fixe selon le niveau et la matière"
+                              className="w-24 bg-gray-100 font-semibold cursor-not-allowed text-center"
                             />
                           </div>
                           {/* Use a normal div instead of CardContent here — CardContent has fixed padding/margin */}
                           <div className="w-64 min-w-[200px]">
-                            <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-                              <SelectTrigger className="w-full">
+                            <Select
+                              value={selectedSemester}
+                              onValueChange={(val) => setSelectedSemester(val as "Semestre 1" | "Semestre 2")}>
+                              <SelectTrigger className="w-full md:w-48 bg-white">
                                 <SelectValue placeholder="Sélectionner un semestre" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem key="1" value="Semestre 1">
+                                <SelectItem key="Semestre 1" value="Semestre 1">
                                   Semestre 1
                                 </SelectItem>
-                                <SelectItem key="2" value="Semestre 2">
+                                <SelectItem key="Semestre 2" value="Semestre 2">
                                   Semestre 2
                                 </SelectItem>
                               </SelectContent>
@@ -879,7 +1103,7 @@ const TeacherGrades = () => {
                           </SelectTrigger>
                           <SelectContent key={"1"}>
                             {classes.map((cls) => {
-                              const className = `${cls.classe.niveau} ${cls.classe.nom}`;
+                              const className = `${(cls.classe?.niveau || cls.classeNiveau || cls.classNiveau)} ${(cls.classe?.nom || cls.classeName || cls.className)}`;
                               return (
                                 <SelectItem key={cls.classeId} value={cls.classeId}>
                                   {className} - {cls.classe.students?.length} élèves
@@ -1097,7 +1321,7 @@ const TeacherGrades = () => {
                           <SelectContent>
                             <SelectItem value="all">Toutes les classes</SelectItem>
                             {classes.map((cls) => {
-                              const className = `${cls.classe.niveau} ${cls.classe.nom}`;
+                              const className = `${(cls.classe?.niveau || cls.classeNiveau || cls.classNiveau)} ${(cls.classe?.nom || cls.classeName || cls.className)}`;
                               return (
                                 <SelectItem key={cls.classeId} value={cls.classeId}>
                                   {className} - {cls.classe.students?.length} élèves
@@ -1215,7 +1439,7 @@ const TeacherGrades = () => {
                                             Appréciation
                                           </label>
                                           <Input
-                                            value={selectedGrade.comment}
+                                            value={selectedGrade.comment || ""}
                                             onChange={(e) =>
                                               setSelectedGrade({
                                                 ...selectedGrade,

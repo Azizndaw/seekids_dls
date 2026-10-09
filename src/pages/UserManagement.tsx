@@ -24,9 +24,8 @@ const UserManagement = () => {
     "students"
   );
 
-  // Filtrer les utilisateurs par rôle (garder seulement les professeurs pour l'ancien système)
-  //const teachers = users.filter((user) => user.role === "professeur");
-  const teachers = users;
+  // Filtrer les utilisateurs par rôle pour conserver uniquement les Professeurs
+  const teachers = users.filter((user) => user.role && user.role.includes("TEACHER"));
 
   if (usersLoading || classesLoading || parentsLoading) {
     // ICI

@@ -173,13 +173,12 @@ const EditParentModal: React.FC<EditParentModalProps> = ({ parent, students }) =
           </div>
 
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email (optionnel)</Label>
             <Input
               id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
             />
           </div>
 

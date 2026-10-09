@@ -65,17 +65,17 @@ const ChatTab = ({ children, selectedChild, onSelectChild }: ChatTabProps) => {
       const uniqueTeachersMap = new Map();
 
       classCourses.forEach(course => {
-        if (course.professeur && !uniqueTeachersMap.has(course.professeur.id)) {
-          uniqueTeachersMap.set(course.professeur.id, {
-            id: course.professeur.id,
-            teacher: `Prof. ${course.professeur.prenom} ${course.professeur.nom}`,
-            subject: course.discipline.name,
+        if (course.professeur && !uniqueTeachersMap.has((course.professeur?.id || course.professeurId || course.teacherId))) {
+          uniqueTeachersMap.set((course.professeur?.id || course.professeurId || course.teacherId), {
+            id: (course.professeur?.id || course.professeurId || course.teacherId),
+            teacher: `Prof. ${(course.professeur?.prenom || course.professeurPrenom || course.teacherPrenom)} ${(course.professeur?.nom || course.professeurNom || course.teacherNom)}`,
+            subject: (course.discipline?.name || course.disciplineName),
             lastMessage: "Cliquez pour démarrer une conversation", // Placeholder
             time: "",
             unread: false,
             childId: selectedChild.id,
-            fromId: course.professeur.id, // Important for linking to conversation
-            from: `Prof. ${course.professeur.prenom} ${course.professeur.nom}`
+            fromId: (course.professeur?.id || course.professeurId || course.teacherId), // Important for linking to conversation
+            from: `Prof. ${(course.professeur?.prenom || course.professeurPrenom || course.teacherPrenom)} ${(course.professeur?.nom || course.professeurNom || course.teacherNom)}`
           });
         }
       });
@@ -352,7 +352,7 @@ const ChatTab = ({ children, selectedChild, onSelectChild }: ChatTabProps) => {
                 </CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-300">
                   {selectedConversation.from}
-                  {selectedChild.prenom} ({selectedChild.classe.niveau} {selectedChild.classe.nom})
+                  {selectedChild.prenom} ({(selectedChild.classe?.niveau || selectedChild.classeNiveau || selectedChild.classNiveau)} {(selectedChild.classe?.nom || selectedChild.classeName || selectedChild.className)})
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-4 flex flex-col h-full">

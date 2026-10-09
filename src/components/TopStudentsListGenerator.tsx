@@ -74,7 +74,7 @@ const TopStudentsListGenerator: React.FC = () => {
 
                 const notesByDiscipline = new Map<string, any[]>();
                 s1Grades.forEach((n: any) => {
-                    const key = n.subject || n.discipline?.name || "Sans Nom";
+                    const key = n.subject || n.discipline?.name || n.disciplineName || "Sans Nom";
                     if (!notesByDiscipline.has(key)) notesByDiscipline.set(key, []);
                     notesByDiscipline.get(key)!.push(n);
                 });

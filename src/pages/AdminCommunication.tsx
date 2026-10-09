@@ -42,11 +42,11 @@ const AdminCommunication = () => {
 
     const uniqueClasses = new Map();
     allCourses.forEach(course => {
-      if (course.classe && !uniqueClasses.has(course.classe.id)) {
-        uniqueClasses.set(course.classe.id, {
-          id: course.classe.id,
-          nom: course.classe.nom,
-          niveau: course.classe.niveau
+      if (course.classe && !uniqueClasses.has((course.classe?.id || course.classeId))) {
+        uniqueClasses.set((course.classe?.id || course.classeId), {
+          id: (course.classe?.id || course.classeId),
+          nom: (course.classe?.nom || course.classeName || course.className),
+          niveau: (course.classe?.niveau || course.classeNiveau || course.classNiveau)
         });
       }
     });

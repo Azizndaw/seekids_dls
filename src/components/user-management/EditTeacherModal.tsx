@@ -98,7 +98,7 @@ const EditTeacherModal: React.FC<EditTeacherModalProps> = ({ teacher, classes })
       }
 
       const response = await httpClient.put(
-        `/api/schools/${authUser.schoolId}/admin-actions/teachers/${teacher.id}`,
+        `/api/schools/${authUser.schoolId}/teachers/${teacher.id}`,
         {
           nom: formData.nom,
           prenom: formData.prenom,
@@ -220,13 +220,12 @@ const EditTeacherModal: React.FC<EditTeacherModalProps> = ({ teacher, classes })
           </div>
 
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email (optionnel)</Label>
             <Input
               id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
             />
           </div>
 

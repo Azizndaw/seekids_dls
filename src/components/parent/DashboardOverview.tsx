@@ -175,7 +175,7 @@ const DashboardOverview = ({
                       <div className="min-w-0 flex-1">
                         <div
                           className={`text-[10px] font-black uppercase tracking-widest text-${color}-600 mb-0.5`}>
-                          {event.discipline.name}
+                          {(event.discipline?.name || event.disciplineName)}
                         </div>
                         <div className="font-bold text-gray-900 dark:text-white text-xs sm:text-sm truncate">
                           {event.title}
@@ -255,7 +255,7 @@ const DashboardOverview = ({
                           {event.title}
                         </p>
                         <p className="text-[10px] text-gray-500 truncate">
-                          {event.discipline.name}
+                          {(event.discipline?.name || event.disciplineName)}
                         </p>
                       </div>
                     </div>

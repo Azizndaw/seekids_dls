@@ -35,6 +35,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ classes, parents }) => 
     nom: "",
     prenom: "",
     date_naissance: "",
+    lieu_naissance: "Dakar",
     classe_id: "CM2",
     parent_id: "",
   });
@@ -49,11 +50,12 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ classes, parents }) => 
         prenom: formData.prenom,
         classeId: formData.classe_id,
         dateOfBirth: formData.date_naissance,
+        lieu_naissance: formData.lieu_naissance || "Dakar",
         parentId: formData.parent_id,
         schoolId: "",
       });
       queryClient.invalidateQueries({ queryKey: ["classes"] });
-      setFormData({ nom: "", prenom: "", date_naissance: "", classe_id: "", parent_id: "" });
+      setFormData({ nom: "", prenom: "", date_naissance: "", lieu_naissance: "Dakar", classe_id: "", parent_id: "" });
       setIsOpen(false);
     }
   };
@@ -90,14 +92,26 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ classes, parents }) => 
               />
             </div>
           </div>
-          <div>
-            <Label htmlFor="student-birth">Date de naissance</Label>
-            <Input
-              id="student-birth"
-              type="date"
-              value={formData.date_naissance}
-              onChange={(e) => setFormData({ ...formData, date_naissance: e.target.value })}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="student-birth">Date de naissance</Label>
+              <Input
+                id="student-birth"
+                type="date"
+                value={formData.date_naissance}
+                onChange={(e) => setFormData({ ...formData, date_naissance: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="student-place">Lieu de naissance</Label>
+              <Input
+                id="student-place"
+                type="text"
+                placeholder="Ex: Dakar"
+                value={formData.lieu_naissance}
+                onChange={(e) => setFormData({ ...formData, lieu_naissance: e.target.value })}
+              />
+            </div>
           </div>
           <div>
             <Label htmlFor="student-class">Classe</Label>

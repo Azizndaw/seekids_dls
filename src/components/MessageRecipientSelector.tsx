@@ -83,18 +83,18 @@ const MessageRecipientSelector = ({
     nom: p.nom,
     prenom: p.prenom,
     email: p.email,
-    enfants: p.children?.map((c) => `${c.prenom} ${c.nom}`),
+    enfants: p.children?.map((c: any) => `${c.prenom} ${c.nom}`) || [],
     // IMPORTANT: Assuming child has classeId or className we can match against
-    childrenClasses: p.children?.map(c => c.classe?.id || c.classeId)
+    childrenClasses: p.children?.map((c: any) => c.classe?.id || c.classeId) || []
   })) || [];
 
-  const mockTeachers: Teacher[] = teachers?.map((t) => ({
+  const mockTeachers: Teacher[] = teachers?.map((t: any) => ({
     id: t.id,
     nom: t.nom,
     prenom: t.prenom,
     email: t.email,
-    matiere: t.disciplines?.map((d) => d.name)?.join(", "),
-    classes: t.classes?.map((c) => [c.classe.niveau, c.classe.nom].join(" ")),
+    matiere: t.disciplines?.map((d: any) => d.name)?.join(", ") || "",
+    classes: t.classes?.map((c: any) => [c.classe?.niveau, c.classe?.nom].join(" ")) || [],
   })) || [];
 
   const classesToUse = availableClasses.length > 0 ? availableClasses : [
@@ -259,11 +259,11 @@ const MessageRecipientSelector = ({
                     <div className="text-xs text-gray-500">{recipient.email}</div>
                     <div className="text-xs text-blue-600">
                       {messageType === "parents"
-                        ? (recipient as Parent).enfants.join(", ")
+                        ? (recipient as Parent).enfants?.join(", ") || ""
                         : messageType === "teachers"
-                          ? `${(recipient as Teacher).matiere} - ${(
+                          ? `${(recipient as Teacher).matiere || ""} - ${(
                             recipient as Teacher
-                          ).classes.join(", ")}`
+                          ).classes?.join(", ") || ""}`
                           : (recipient as AdminMember).poste}
                     </div>
                   </div>

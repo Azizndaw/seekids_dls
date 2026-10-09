@@ -171,6 +171,9 @@ export const useGetCurrentParent = () => {
 
       if (response.data.children && Array.isArray(response.data.children)) {
         response.data.children.forEach((child) => {
+          if (!child.attendances && child.school_attendances) {
+            child.attendances = child.school_attendances;
+          }
           if (child.attendances) {
             child.attendances = child.attendances.map((attendance) => ({
               ...attendance,

@@ -8,7 +8,12 @@ const cleanhttpClient: AxiosInstance = axios.create({
   }
 });
 cleanhttpClient.interceptors.request.use((config) => {
-  config.headers["X-Academic-Year"] = localStorage.getItem("academicYear") || "2025-2026";
+  const isAdmin = typeof window !== 'undefined' && window.location.pathname.includes('admin');
+  let academicYear = localStorage.getItem("academicYear") || "2026-2027";
+  if (!isAdmin) {
+    academicYear = "2026-2027";
+  }
+  config.headers["X-Academic-Year"] = academicYear;
   return config;
 });
 

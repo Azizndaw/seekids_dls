@@ -72,7 +72,7 @@ const AbsencesModal = ({ isOpen, onClose, absences, studentId, classId }: Absenc
     const unique = new Map();
     filteredCourses.forEach((c) => {
       if (!unique.has(c.disciplineId)) {
-        unique.set(c.disciplineId, { id: c.disciplineId, name: c.discipline.name });
+        unique.set(c.disciplineId, { id: c.disciplineId, name: (c.discipline?.name || c.disciplineName) });
       }
     });
     return Array.from(unique.values());
@@ -164,7 +164,7 @@ const AbsencesModal = ({ isOpen, onClose, absences, studentId, classId }: Absenc
                   <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
                     <div className="flex items-center space-x-2">
                       <span className="font-medium">Matière:</span>
-                      <span>{absence.discipline.name}</span>
+                      <span>{(absence.discipline?.name || absence.disciplineName)}</span>
                     </div>
 
                     <div className="flex items-center space-x-2">

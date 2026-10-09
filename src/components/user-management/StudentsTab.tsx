@@ -24,6 +24,8 @@ import { Parent } from "@/hooks/useParents";
 import AddStudentForm from "./AddStudentForm";
 import EditStudentModal from "./EditStudentModal";
 import { generateStudentListPDF, StudentPDFData } from "@/utils/generateStudentListPDF";
+import { generateCertificatScolaritePDF } from "@/utils/generateCertificatScolaritePDF";
+import { FileCheck } from "lucide-react";
 
 interface StudentsTabProps {
   students: (Student & {
@@ -66,15 +68,22 @@ const StudentsTab: React.FC<StudentsTabProps> = ({ students, classe: classes, pa
       return false;
     }
     // Apply search filter
+    const search = (searchTerm || "").toLowerCase();
+    const s: any = student;
+    const studentNom = (s.nom || "").toLowerCase();
+    const studentPrenom = (s.prenom || "").toLowerCase();
+    const parentNom = (s.parent?.nom || "").toLowerCase();
+    const parentPrenom = (s.parent?.prenom || "").toLowerCase();
+    const classeNiveau = (s.classe?.niveau || s.classeNiveau || s.classNiveau || "").toLowerCase();
+    const classeNom = (s.classe?.nom || s.classeName || s.className || "").toLowerCase();
+
     return (
-      student.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.parent &&
-        (student.parent.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          student.parent.prenom.toLowerCase().includes(searchTerm.toLowerCase()))) ||
-      (student.classe &&
-        (student.classe.niveau.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          student.classe.nom.toLowerCase().includes(searchTerm.toLowerCase())))
+      studentNom.includes(search) ||
+      studentPrenom.includes(search) ||
+      parentNom.includes(search) ||
+      parentPrenom.includes(search) ||
+      classeNiveau.includes(search) ||
+      classeNom.includes(search)
     );
   });
 
@@ -149,7 +158,7 @@ const StudentsTab: React.FC<StudentsTabProps> = ({ students, classe: classes, pa
             <TableHeader>
               <TableRow>
                 <TableHead>Nom Complet</TableHead>
-                <TableHead>Date de Naissance</TableHead>
+                <TableHead>Date / Lieu de Naissance</TableHead>
                 <TableHead>Classe</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Actions</TableHead>
@@ -162,18 +171,23 @@ const StudentsTab: React.FC<StudentsTabProps> = ({ students, classe: classes, pa
                     {student.prenom} {student.nom}
                   </TableCell>
                   <TableCell>
-                    {student.dateOfBirth ? (
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(student.dateOfBirth).toLocaleDateString("fr-FR")}
+                    <div className="flex flex-col text-sm">
+                      <span>
+                        {student.dateOfBirth ? (
+                          new Date(student.dateOfBirth).toLocaleDateString("fr-FR")
+                        ) : (
+                          "Non renseignée"
+                        )}
                       </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Non renseignée</span>
-                    )}
+                      <span className="text-xs text-muted-foreground">
+                        à {student.lieu_naissance || "Dakar"}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     {student.classe ? (
                       <Badge variant="secondary">
-                        {student.classe.niveau} - {student.classe.nom}
+                        {((student as any).classe?.niveau || (student as any).classeNiveau || (student as any).classNiveau)} - {((student as any).classe?.nom || (student as any).classeName || (student as any).className)}
                       </Badge>
                     ) : (
                       <Badge variant="outline">Non assigné</Badge>
@@ -189,7 +203,27 @@ const StudentsTab: React.FC<StudentsTabProps> = ({ students, classe: classes, pa
                     )}
                   </TableCell>
                   <TableCell>
-                    <EditStudentModal student={student} classes={classes} parents={parents} />
+                    <div className="flex items-center gap-2">
+                      <EditStudentModal student={student} classes={classes} parents={parents} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs text-primary border-primary/30 hover:bg-primary/5"
+                        onClick={() =>
+                          generateCertificatScolaritePDF({
+                            prenom: student.prenom,
+                            nom: student.nom,
+                            dateOfBirth: student.dateOfBirth,
+                            lieu_naissance: student.lieu_naissance || "Dakar",
+                            classeName: (student as any).classe?.nom || (student as any).classeName || "",
+                            classeNiveau: (student as any).classe?.niveau || (student as any).classeNiveau || "",
+                          })
+                        }
+                      >
+                        <FileCheck className="w-3.5 h-3.5 mr-1" />
+                        Certificat
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

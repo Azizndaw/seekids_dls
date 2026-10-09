@@ -14,6 +14,7 @@ import {
   useSetMessageStatus,
 } from "@/hooks/use-message";
 import { useGetCoursByProfesseur } from "@/hooks/useCours";
+import { useClasses } from "@/hooks/useUsers";
 import { SocketContext } from "@/socket/SocketContext";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -30,23 +31,41 @@ const TeacherMessages = () => {
   const [messageType, setMessageType] = useState<"parents" | "administration">("parents");
 
   const { data: teacherCourses } = useGetCoursByProfesseur();
+  const { data: allClasses } = useClasses();
 
   // Extract unique classes for the teacher
   const teacherClasses = useMemo(() => {
-    if (!teacherCourses) return [];
-
     const uniqueClasses = new Map();
-    teacherCourses.forEach(course => {
-      if (course.classe && !uniqueClasses.has(course.classe.id)) {
-        uniqueClasses.set(course.classe.id, {
-          id: course.classe.id,
-          nom: course.classe.nom,
-          niveau: course.classe.niveau
-        });
-      }
-    });
+
+    // Add classes from courses
+    if (teacherCourses) {
+      teacherCourses.forEach(course => {
+        if (course.classe && !uniqueClasses.has((course.classe?.id || course.classeId))) {
+          uniqueClasses.set((course.classe?.id || course.classeId), {
+            id: (course.classe?.id || course.classeId),
+            nom: (course.classe?.nom || course.classeName || course.className),
+            niveau: (course.classe?.niveau || course.classeNiveau || course.classNiveau)
+          });
+        }
+      });
+    }
+
+    // Add classes from direct assignments
+    if (allClasses) {
+      const assignedClasses = allClasses.filter((c: any) => c.professeurs?.some((p: any) => p.professeurId === userId));
+      assignedClasses.forEach((cls: any) => {
+        if (cls && !uniqueClasses.has(cls.id)) {
+          uniqueClasses.set(cls.id, {
+            id: cls.id,
+            nom: cls.nom,
+            niveau: cls.niveau
+          });
+        }
+      });
+    }
+
     return Array.from(uniqueClasses.values());
-  }, [teacherCourses]);
+  }, [teacherCourses, allClasses, userId]);
 
   const updateMessageReadStatus = useSetMessageStatus();
 

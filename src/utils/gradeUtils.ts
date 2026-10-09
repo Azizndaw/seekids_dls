@@ -1,5 +1,9 @@
-export const getAverageInterpretation = (moyenne: number, weakestSubject?: string | null) => {
-    const progressMsg = weakestSubject ? ` – peut encore progresser en ${weakestSubject}` : "";
+export const getAverageInterpretation = (moyenne: number | null | undefined, weakestSubject?: string | null) => {
+    const progressMsg = weakestSubject ? ` — peut encore progresser en ${weakestSubject}` : "";
+
+    if (moyenne === null || moyenne === undefined || Number.isNaN(moyenne) || moyenne === 0) {
+        return { label: "Non noté", color: "text-gray-500", bg: "bg-gray-100" };
+    }
 
     if (moyenne >= 16) return { label: "Excellent niveau", color: "text-green-600", bg: "bg-green-100" };
     if (moyenne >= 14) return { label: "Bon niveau" + progressMsg, color: "text-blue-600", bg: "bg-blue-100" };
@@ -62,7 +66,7 @@ export const calculatePeriodStats = (allGrades: any[], period: "semestre1" | "se
 
     const notesByDiscipline = new Map<string, any[]>();
     relevantGrades.forEach((n: any) => {
-        const key = n.subject || n.discipline?.name || "Sans Nom";
+        const key = n.subject || n.discipline?.name || n.disciplineName || "Sans Nom";
         if (!notesByDiscipline.has(key)) notesByDiscipline.set(key, []);
         notesByDiscipline.get(key)!.push(n);
     });

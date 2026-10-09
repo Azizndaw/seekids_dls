@@ -25,12 +25,14 @@ interface ParentsTabProps {
 const ParentsTab: React.FC<ParentsTabProps> = ({ parents, students }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredParents = parents.filter(
-    (parent) =>
-      parent.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      parent.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      parent.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredParents = parents.filter((parent) => {
+    const search = (searchTerm || "").toLowerCase();
+    return (
+      (parent.nom || "").toLowerCase().includes(search) ||
+      (parent.prenom || "").toLowerCase().includes(search) ||
+      (parent.email || "").toLowerCase().includes(search)
+    );
+  });
 
   return (
     <Card>

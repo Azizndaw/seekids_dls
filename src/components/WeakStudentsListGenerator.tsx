@@ -49,35 +49,35 @@ const WeakStudentsListGenerator: React.FC = () => {
             { nom: "DIOP", prenom: "Aissatou", classe: "TS2", moyenne: 11 },
         ];
 
-        // Extract all existing class names from the fetched data
-        const existingClasses = classes.map(c => c.classe);
+        const existingClasses = classes.map(c => c?.classe).filter(Boolean);
 
         // Map manual students to existing classes if possible
         const mappedManualStudents = manualStudentsList.map(ms => {
             // Find a class that starts with or contains the manual class name (e.g., "Seconde" matches "Seconde A")
-            const matchedClass = existingClasses.find(c => 
-                c.toLowerCase().includes(ms.classe.toLowerCase()) || 
-                ms.classe.toLowerCase().includes(c.toLowerCase())
-            );
+            const matchedClass = existingClasses.find(c => {
+                if (!c || typeof c !== 'string' || !ms.classe) return false;
+                return c.toLowerCase().includes(ms.classe.toLowerCase()) ||
+                    ms.classe.toLowerCase().includes(c.toLowerCase());
+            });
             return {
                 ...ms,
                 classe: matchedClass || ms.classe // Use matched class or fallback to manual name
             };
         });
 
-        classes.forEach((classData : any) => {
+        classes.forEach((classData: any) => {
             const students = classData.studentsData || [];
             const currentClassName = classData.classe;
-            
+
             students.forEach((student: any) => {
                 // Calculate general average for SEMESTRE 1 ONLY
                 const s1Grades = (student.grades || []).filter((g: any) => g.semestre?.includes("1"));
-                
+
                 if (s1Grades.length === 0) return;
 
                 const notesByDiscipline = new Map<string, any[]>();
                 s1Grades.forEach((n: any) => {
-                    const key = n.subject || n.discipline?.name || "Sans Nom";
+                    const key = n.subject || n.discipline?.name || n.disciplineName || "Sans Nom";
                     if (!notesByDiscipline.has(key)) notesByDiscipline.set(key, []);
                     notesByDiscipline.get(key)!.push(n);
                 });
@@ -98,15 +98,15 @@ const WeakStudentsListGenerator: React.FC = () => {
                 });
 
                 const avg = totalCoef > 0 ? totalMoyenneCoef / totalCoef : 0;
-                
+
                 // FILTER: Average <= 11
                 if (avg <= 11) {
                     // Check if this student is already in manual list to avoid duplicates
                     // We check by name and mapped class
-                    const isManual = mappedManualStudents.some(m => 
-                        (m.nom.toUpperCase() === (student.lastName || "").toUpperCase() && 
-                         m.prenom.toUpperCase() === (student.firstName || "").toUpperCase() &&
-                         m.classe === currentClassName)
+                    const isManual = mappedManualStudents.some(m =>
+                    (m.nom.toUpperCase() === (student.lastName || "").toUpperCase() &&
+                        m.prenom.toUpperCase() === (student.firstName || "").toUpperCase() &&
+                        m.classe === currentClassName)
                     );
 
                     if (!isManual) {
@@ -159,7 +159,7 @@ const WeakStudentsListGenerator: React.FC = () => {
         doc.setFont(undefined, "normal");
         doc.text("Ministère de l'Éducation Nationale", 14, 13);
         doc.text("INSPECTION D’ACADÉMIE DE DAKAR / IEF DES ALMADIES", 14, 16);
-        
+
         doc.setFontSize(8);
         doc.setFont(undefined, "italic");
         doc.text("Collège Lycée de Référence Trilingue", 14, 20);
@@ -167,7 +167,7 @@ const WeakStudentsListGenerator: React.FC = () => {
         doc.text("DAKAR LEADERS SCHOOL-DLS", 14, 24);
 
         if (logo) {
-            try { doc.addImage(logo, "PNG", pageWidth / 2 - 10, 5, 20, 20); } catch (e) {}
+            try { doc.addImage(logo, "PNG", pageWidth / 2 - 10, 5, 20, 20); } catch (e) { }
         }
 
         doc.setFontSize(8);
@@ -196,7 +196,7 @@ const WeakStudentsListGenerator: React.FC = () => {
 
         classes.forEach((className, index) => {
             const classStudents = studentsByClass[className];
-            
+
             // Add Class Title
             doc.setFontSize(10);
             doc.setFont(undefined, "bold");
@@ -216,7 +216,7 @@ const WeakStudentsListGenerator: React.FC = () => {
                 head: [['Élève (Nom & Prénoms)', 'Moyenne Générale']],
                 body: tableBody,
                 headStyles: {
-                    fillColor: [185, 28, 28], 
+                    fillColor: [185, 28, 28],
                     textColor: [255, 255, 255],
                     fontSize: dynamicFontSize + 1,
                     fontStyle: 'bold',
@@ -248,7 +248,7 @@ const WeakStudentsListGenerator: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 8;
-            
+
             // If nearing end of page, and not last class, add page break
             if (currentY > 250 && index < classes.length - 1) {
                 doc.addPage();
@@ -257,7 +257,7 @@ const WeakStudentsListGenerator: React.FC = () => {
         });
 
         const signatureY = currentY > 265 ? 270 : currentY + 10;
-        
+
         doc.setFontSize(10);
         doc.setFont(undefined, "bold");
         doc.text("Le Directeur des Études", 35, signatureY, { align: "center" });

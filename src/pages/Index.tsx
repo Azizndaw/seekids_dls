@@ -37,6 +37,25 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    const storedUser = localStorage.getItem("utilisateur_connecte");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        const roles = Array.isArray(user.role) ? user.role : [user.role];
+        if (roles.includes("ADMIN") || roles.includes("administration")) {
+          navigate("/admin-dashboard", { replace: true });
+        } else if (roles.includes("TEACHER") || roles.includes("professeur")) {
+          navigate("/teacher-dashboard", { replace: true });
+        } else if (roles.includes("PARENT") || roles.includes("parent")) {
+          navigate("/parent-dashboard", { replace: true });
+        }
+      } catch (e) {
+        console.error("Erreur lors de la lecture de la session:", e);
+      }
+    }
+  }, [navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     let route = "";
@@ -97,8 +116,11 @@ const Index = () => {
 
   const handleBubbleClick = (type: UserType) => {
     setSelectedBubble(type);
-    setLoginType("email");
-
+    if (type === "parent" || type === "teacher") {
+      setLoginType("phone");
+    } else {
+      setLoginType("email");
+    }
   };
 
   const closeBubble = () => {
@@ -297,41 +319,45 @@ const Index = () => {
                     <div className="space-y-6">
                       {/* Méthode de connexion */}
                       <div>
-                        <Label className="text-card-foreground text-sm font-medium mb-3 block">
-                          Choisissez votre méthode de connexion
-                        </Label>
-                        <div className="relative bg-muted/30 p-1 rounded-2xl border border-border/50">
-                          <div className="flex">
-                            <button
-                              type="button"
-                              onClick={() => setLoginType("email")}
-                              className={`
-                                flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium
-                                transition-all duration-300 relative z-10
-                                ${loginType === "email"
-                                  ? "bg-background text-foreground shadow-lg"
-                                  : "text-muted-foreground hover:text-foreground"
-                                }
-                              `}>
-                              <Mail className="w-4 h-4" />
-                              <span className="hidden sm:inline">Email</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setLoginType("phone")}
-                              className={`
-                                flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium
-                                transition-all duration-300 relative z-10
-                                ${loginType === "phone"
-                                  ? "bg-background text-foreground shadow-lg"
-                                  : "text-muted-foreground hover:text-foreground"
-                                }
-                              `}>
-                              <Phone className="w-4 h-4" />
-                              <span className="hidden sm:inline">Téléphone</span>
-                            </button>
+                        {selectedBubble !== "parent" && (
+                          <Label className="text-card-foreground text-sm font-medium mb-3 block">
+                            Choisissez votre méthode de connexion
+                          </Label>
+                        )}
+                        {selectedBubble !== "parent" && (
+                          <div className="relative bg-muted/30 p-1 rounded-2xl border border-border/50">
+                            <div className="flex">
+                              <button
+                                type="button"
+                                onClick={() => setLoginType("email")}
+                                className={`
+                                    flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium
+                                    transition-all duration-300 relative z-10
+                                    ${loginType === "email"
+                                    ? "bg-background text-foreground shadow-lg"
+                                    : "text-muted-foreground hover:text-foreground"
+                                  }
+                                  `}>
+                                <Mail className="w-4 h-4" />
+                                <span className="hidden sm:inline">Email</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setLoginType("phone")}
+                                className={`
+                                    flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium
+                                    transition-all duration-300 relative z-10
+                                    ${loginType === "phone"
+                                    ? "bg-background text-foreground shadow-lg"
+                                    : "text-muted-foreground hover:text-foreground"
+                                  }
+                                  `}>
+                                <Phone className="w-4 h-4" />
+                                <span className="hidden sm:inline">Téléphone</span>
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                         <div className="text-center mt-2">
                           <p className="text-xs text-muted-foreground">
                             {loginType === "phone"

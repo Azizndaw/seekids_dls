@@ -79,12 +79,11 @@ const AddParentForm: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // Validation: Au moins email OU téléphone requis
+    // Validation: Nom, prénom et mot de passe requis
     if (
       !formData.nom ||
       !formData.prenom ||
-      !formData.password ||
-      (!formData.email && !formData.telephone)
+      !formData.password
     ) {
       return;
     }
@@ -197,28 +196,22 @@ L'équipe administrative`;
               </div>
             </div>
             <div>
-              <Label htmlFor="parent-email">Email {!formData.telephone && "*"}</Label>
+              <Label htmlFor="parent-email">Email (optionnel)</Label>
               <Input
                 id="parent-email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={!formData.email && !formData.telephone ? "border-red-500" : ""}
               />
             </div>
             <div>
-              <Label htmlFor="parent-telephone">Téléphone {!formData.email && "*"}</Label>
+              <Label htmlFor="parent-telephone">Téléphone</Label>
               <PhoneInput
                 country={"sn"}
                 value={formData.telephone}
                 placeholder="+221 77 123 45 67"
                 onChange={(e) => setFormData({ ...formData, telephone: e.valueOf() })}
               />
-              {!formData.email && !formData.telephone && (
-                <p className="text-xs text-red-500 mt-1">
-                  Au moins un email ou un téléphone est requis
-                </p>
-              )}
             </div>
             <div>
               <Label htmlFor="parent-password">Mot de passe *</Label>
@@ -339,8 +332,7 @@ L'équipe administrative`;
             disabled={
               createParentMutation.isPending ||
               !formData.nom ||
-              !formData.prenom ||
-              (!formData.email && !formData.telephone)
+              !formData.prenom
             }>
             {createParentMutation.isPending ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -353,7 +345,7 @@ L'équipe administrative`;
       </DialogContent>
 
       {/* Dialog WhatsApp */}
-      <Dialog open={showWhatsAppDialog} onOpenChange={() => {}}>
+      <Dialog open={showWhatsAppDialog} onOpenChange={() => { }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Parent créé avec succès!</DialogTitle>

@@ -40,8 +40,9 @@ export const JustificationRequestsModal = () => {
     today.setHours(0, 0, 0, 0);
 
     classesData.forEach((student) => {
-      if (student.attendances?.length) {
-        student.attendances.forEach((att) => {
+      const safeAttendances = student.attendances || (student as any).school_attendances || (student as any).attendance;
+      if (safeAttendances?.length) {
+        safeAttendances.forEach((att: any) => {
           if (att.reason?.trim()) {
             const attDate = new Date(att.date);
 

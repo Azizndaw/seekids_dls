@@ -21,7 +21,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     // Connect socket on mount
     setSocketInstance(socket);
     if (!socket.connected) {
-      socket.connect();
+      // socket.connect(); // Disabled for Cloudflare Phase 1
     }
 
     return () => {

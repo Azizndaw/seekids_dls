@@ -55,7 +55,7 @@ export const useGetNoteById = (noteId: string) => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note | null>({
-    queryKey: ["note", noteId],
+    queryKey: ["note", noteId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -79,7 +79,7 @@ export const useGetNotesByStudentId = (studentId: string) => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note[]>({
-    queryKey: ["notes", "student", studentId],
+    queryKey: ["notes", "student", studentId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -104,7 +104,7 @@ export const useGetNotesByClasseId = (classeId: string) => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note[]>({
-    queryKey: ["notes", "classe", classeId],
+    queryKey: ["notes", "classe", classeId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -128,7 +128,7 @@ export const useGetNotesByDisciplineId = (disciplineId: string) => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note[]>({
-    queryKey: ["notes", "discipline", disciplineId],
+    queryKey: ["notes", "discipline", disciplineId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -153,7 +153,7 @@ export const useGetNotesByTeacherId = (professeurId: string) => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note[]>({
-    queryKey: ["notes", "teacher", professeurId],
+    queryKey: ["notes", "teacher", professeurId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -177,7 +177,7 @@ export const useGetNotesBySchoolId = () => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<Note[]>({
-    queryKey: ["notes", "school", schoolId],
+    queryKey: ["notes", "school", schoolId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
@@ -212,7 +212,7 @@ export const useCreateNote = () => {
         throw new Error("School ID is not available.");
       }
       const { data } = await httpClient.post(
-        `/api/schools/${schoolId}/classes/${newNote.classeId}/notes`,
+        `/api/schools/${schoolId}/notes`,
         newNote,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
@@ -335,24 +335,39 @@ type GradeOutput = {
 
 export function convertGrades(input: Note[]): GradeOutput[] {
   if (!input) return [];
-  return input.map((item) => ({
-    id: item.id, // Assuming the ID starts from 1 and increments
-    student: `${item.student.prenom} ${item.student.nom}`, // Assuming you can map studentId to actual student name
-    class: `${item.classe.niveau} ${item.classe.nom}`, // Same as above, map classeId to class name
-    subject: item.discipline.name, // Hardcoded for this example; map disciplineId if needed
-    type: item.devoir ? "Devoir" : "Composition", // Assuming the type is "Devoir" or "Composition" based on the word
-    title: item.type, // Hardcoded title, can be customized if needed
-    grade: item.note,
-    coefficient: item.coefficient,
-    date: item.date.toString().split("T")[0], // Extract the date part only
-    comment: item.appreciation, // Mapping appreciation to comment
-    extraData: {
-      professeurId: item.professeurId,
-      classeId: item.classeId,
-      studentId: item.studentId,
-      disciplineId: item.disciplineId,
-    },
-  }));
+  return input.map((item: any) => {
+    // 1. Safe Date Parser for D1 Epoch
+    const parseDate = (d: any) => {
+      if (!d) return new Date().toISOString();
+      if (typeof d === 'number' || (typeof d === 'string' && !isNaN(Number(d)))) return new Date(Number(d)).toISOString();
+      return new Date(d).toISOString();
+    };
+
+    // 2. Safe Fallbacks for Flattened Joins vs Prisma Objects
+    const studentPrenom = item.student?.prenom || item.studentPrenom || '';
+    const studentNom = item.student?.nom || item.studentNom || '';
+    const className = item.classe?.nom ? `${item.classe?.niveau || ''} ${item.classe?.nom || ''}`.trim() : (item.classeName || '');
+    const subjectName = item.discipline?.name || item.disciplineName || '';
+
+    return {
+      id: item.id,
+      student: `${studentPrenom} ${studentNom}`.trim() || 'Inconnu',
+      class: className || 'Inconnue',
+      subject: subjectName || 'Inconnue',
+      type: item.devoir ? "Devoir" : "Composition",
+      title: item.type,
+      grade: item.note,
+      coefficient: item.coefficient,
+      date: parseDate(item.date).split("T")[0],
+      comment: item.appreciation,
+      extraData: {
+        professeurId: item.professeurId,
+        classeId: item.classeId,
+        studentId: item.studentId,
+        disciplineId: item.disciplineId,
+      },
+    };
+  });
 }
 
 type Grade = {
@@ -405,7 +420,7 @@ export const convertStudents = (students: SourceStudent[]): StudentData[] => {
     const nom = s.lastName;
     const classe = s.classe;
 
-    const devoirs = s.grades
+    const devoirs = (s.grades || [])
       .filter((g) => g.devoir === true)
       .map((g) => ({
         matiere: g.subject,
@@ -413,7 +428,7 @@ export const convertStudents = (students: SourceStudent[]): StudentData[] => {
         date: g.date,
       }));
 
-    const compositions = s.grades
+    const compositions = (s.grades || [])
       .filter((g) => g.type.toLowerCase().includes("composition"))
       .map((g) => ({
         matiere: g.subject,
@@ -421,8 +436,9 @@ export const convertStudents = (students: SourceStudent[]): StudentData[] => {
         date: g.date,
       }));
 
-    const absences = s.attendance.filter((a) => a.type === "ABSCENCE").length;
-    const retards = s.attendance.filter((a) => a.type === "RETARD").length;
+    const rawAttendances = s.attendance || (s as any).school_attendances || (s as any).attendances || [];
+    const absences = rawAttendances.filter((a: any) => a.type === "ABSCENCE" || a.type === "ABSENCE").length;
+    const retards = rawAttendances.filter((a: any) => a.type === "RETARD" || a.type === "LATE").length;
 
     const result = {
       nom: nom ?? "",

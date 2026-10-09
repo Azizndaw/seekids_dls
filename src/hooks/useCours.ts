@@ -31,10 +31,16 @@ export type Cours = {
   professeurId: string;
   classeId: string;
   schoolId: string;
-  // Include the nested objects returned by the API
-  discipline: Discipline;
-  professeur: Professeur;
-  classe: Classe;
+  // Include the nested objects returned by the old Prisma API (optional now)
+  discipline?: Discipline;
+  professeur?: Professeur;
+  classe?: Classe;
+  // Flattened properties from Cloudflare D1
+  disciplineName?: string;
+  professeurNom?: string;
+  professeurPrenom?: string;
+  classeName?: string;
+  nbEleves?: number;
 };
 
 // Define types for the mutation payloads for better type safety.
@@ -503,8 +509,8 @@ export function transformCoursesToParents(courses) {
     // --- Step 2: Extract and rename properties ---
     const simplifiedCourse = {
       time: timeRange,
-      subject: course.discipline.name,
-      teacher: `${course.professeur.prenom} ${course.professeur.nom}`,
+      subject: course.discipline?.name || course.disciplineName || "",
+      teacher: `${course.professeur?.prenom || course.professeurPrenom || ""} ${course.professeur?.nom || course.professeurNom || ""}`,
     };
 
     // --- Step 3: Add the simplified course to the accumulator object ---
@@ -529,12 +535,12 @@ export function transformCoursesToAdminSchedule(courses: Cours[]): any {
     const time = normalizeTime(course.heure); // Normalize to a consistent format
     const startTime = time.split("-")[0];
     const endTime = time.split("-")[1];
-    const subject = course.discipline.name;
-    const classeId = course.classe.id;
-    const className = `${course.classe.niveau} ${course.classe.nom}`;
-    const teacherName = `Prof. ${course.professeur.prenom} ${course.professeur.nom}`;
-    const teacherId = course.professeur.id;
-    const subjectId = course.discipline.id;
+    const subject = course.discipline?.name || course.disciplineName || "";
+    const classeId = course.classe?.id || course.classeId || "";
+    const className = course.classe ? `${course.classe?.niveau || ""} ${course.classe?.nom || ""}` : course.classeName || "";
+    const teacherName = `Prof. ${course.professeur?.prenom || course.professeurPrenom || ""} ${course.professeur?.nom || course.professeurNom || ""}`;
+    const teacherId = course.professeur?.id || course.professeurId || "";
+    const subjectId = course.discipline?.id || course.disciplineId || "";
 
     if (!schedule[day]) {
       schedule[day] = [];
@@ -565,81 +571,77 @@ export function transformCoursesToAdminSchedule(courses: Cours[]): any {
  * arrays of simplified course objects.
  */
 export function transformToTeacherDailySchedule(courses: Array<any>): object {
+  if (!Array.isArray(courses)) return {};
   return courses.reduce((acc, course) => {
-    // Extract and simplify the required properties
+    if (!course) return acc;
+    const rawDay = (course.jour || "").trim();
+    const day = rawDay ? rawDay.charAt(0).toUpperCase() + rawDay.slice(1).toLowerCase() : "";
+
+    const className = course.classe
+      ? `${course.classe?.niveau || ""} ${course.classe?.nom || ""}`.trim()
+      : (course.classeNiveau ? `${course.classeNiveau} ${course.classeName || ""}`.trim() : (course.classeName || ""));
+
     const transformedCourse = {
-      // The time field needs to handle both single hours and ranges
       time: course.heure,
-      class: `${course.classe.niveau} ${course.classe.nom}`,
-      subject: course.discipline.name,
-      students: course.classe.effectif,
+      class: className,
+      subject: course.discipline?.name || course.disciplineName || "",
+      students: course.classe?.students?.length || course.classe?.effectif || course.nbEleves || 0,
     };
 
-    const day = course.jour;
-
-    // Initialize the day's array if it doesn't exist
-    if (!acc[day]) {
-      acc[day] = [];
+    if (day) {
+      if (!acc[day]) {
+        acc[day] = [];
+      }
+      acc[day].push(transformedCourse);
     }
-
-    // Add the simplified course to the correct day
-    acc[day].push(transformedCourse);
 
     return acc;
   }, {});
 }
 
-/**
- * Transforms a flat array of course objects into a simplified list of
- * recent/upcoming classes, calculating the status based on the current time.
- *
- * @param {Array<Object>} courses - The raw array of course objects from an API.
- * @returns {Array<Object>} An array of simplified class objects with status.
- */
 export function transformToRecentClasses(courses: any[]): Array<any> {
-  // Use a fixed timestamp for this example, based on the server's time.
-  const weekDays = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  if (!Array.isArray(courses)) return [];
+  const weekDays = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
   const now = new Date();
-  const coursesOfToday = courses.filter((c) => c.jour === weekDays[now.getDay() - 1]);
+  const dayIdx = (now.getDay() + 6) % 7; // Monday = 0, Sunday = 6
+  const todayName = weekDays[dayIdx];
+
+  const coursesOfToday = courses.filter((c) => {
+    const cDay = (c?.jour || "").trim().toLowerCase();
+    return cDay === todayName.toLowerCase();
+  });
 
   return coursesOfToday.map((course) => {
-    // Determine the start and end hours from the 'heure' string.
-    let startHour, endHour;
-    const timeParts = course.heure.split(" - ");
-    if (timeParts.length === 2) {
-      startHour = parseInt(timeParts[0].replace("h", ""));
-      endHour = parseInt(timeParts[1].replace("h", ""));
-    } else {
-      startHour = parseInt(timeParts[0].replace("h", ""));
-      endHour = startHour + 1;
+    let startHour = 8, endHour = 10;
+    if (course.heure && course.heure.includes("-")) {
+      const timeParts = course.heure.split("-").map((s: string) => s.trim());
+      const getH = (str: string) => {
+        const m = str.match(/\d+/);
+        return m ? parseInt(m[0]) : 8;
+      };
+      startHour = getH(timeParts[0]);
+      endHour = getH(timeParts[1]);
     }
 
-    // Get the current day of the week (0 for Sunday, 1 for Monday, etc.)
-    const currentDay = now.toLocaleString("fr-FR", { weekday: "long" });
-    const courseDay = course.jour;
+    const currentHour = now.getHours();
+    let status = "À venir";
 
-    // Determine the course status
-    let status = "À venir"; // Default status is "À venir"
-
-    // Only check the status for today's courses
-    if (currentDay.toLowerCase() === courseDay.toLowerCase()) {
-      const currentHour = (now.getUTCHours() + 2) / 24;
-
-      // Check if the current time is within the course's time range
-      if (currentHour >= startHour && currentHour < endHour) {
-        status = "En cours"; // The course is ongoing
-      } else if (currentHour >= endHour) {
-        status = "Passé"; // The course has already passed
-      }
+    if (currentHour >= startHour && currentHour < endHour) {
+      status = "En cours";
+    } else if (currentHour >= endHour) {
+      status = "Passé";
     }
 
-    // Return the new, simplified object
+    const className = course.classe
+      ? `${course.classe?.niveau || ""} ${course.classe?.nom || ""}`.trim()
+      : (course.classeNiveau ? `${course.classeNiveau} ${course.classeName || ""}`.trim() : (course.classeName || ""));
+
     return {
-      name: course.classe.nom,
-      subject: course.discipline.name,
+      name: className,
+      subject: course.discipline?.name || course.disciplineName || "",
       time: course.heure,
-      students: course.classe.effectif,
+      students: course.classe?.students?.length || course.classe?.effectif || course.nbEleves || 0,
       status: status,
     };
   });

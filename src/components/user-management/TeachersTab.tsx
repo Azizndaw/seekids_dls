@@ -47,10 +47,11 @@ const TeachersTab: React.FC<TeachersTabProps> = ({ teachers, classes }) => {
   const logoUrl = useSchoolLogo();
 
   const filteredTeachers = teachers.filter((teacher) => {
+    const search = (searchTerm || "").toLowerCase();
     const matchesSearch =
-      teacher.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
+      (teacher.nom || "").toLowerCase().includes(search) ||
+      (teacher.prenom || "").toLowerCase().includes(search) ||
+      (teacher.email || "").toLowerCase().includes(search);
 
     const teacherClasses = classes.filter((classe) =>
       classe.professeurs?.some((pc) => pc.professeurId === teacher.id)
@@ -257,7 +258,7 @@ const TeachersTab: React.FC<TeachersTabProps> = ({ teachers, classes }) => {
                   classe.professeurs?.some((pc) => pc.professeurId === teacher.id)
                 );
                 const t: any = teacher;
-                const assignedSubjects = t.disciplines;
+                const assignedSubjects = t.disciplines || [];
                 return (
                   <TableRow key={teacher.id}>
                     <TableCell>

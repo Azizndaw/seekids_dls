@@ -23,6 +23,7 @@ import WeakStudentsListGenerator from "@/components/WeakStudentsListGenerator";
 import ExclusionReportGenerator from "@/components/ExclusionReportGenerator";
 import ClassDetailsModal from "@/components/ClassDetailsModal";
 import SubjectReportsGrid from "@/components/SubjectReportsGrid";
+import CertificatScolariteGenerator from "@/components/CertificatScolariteGenerator";
 
 const SchoolReports = () => {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ const SchoolReports = () => {
     );
   }
 
-  const classReports = schoolResults.classAverages;
+  const classReports = schoolResults.classAverages || (Array.isArray(schoolResults) ? schoolResults : []) || [];
   const filteredClass =
     selectedClassId === "all"
       ? classReports
@@ -235,13 +236,14 @@ const SchoolReports = () => {
             <SubjectReportsGrid
               reports={
                 selectedClassId === "all"
-                  ? schoolResults.subjectReports
-                  : filteredClass[0]?.subjectReports || []
+                  ? (schoolResults.subjectReports || [])
+                  : (filteredClass[0]?.subjectReports || [])
               }
             />
           </TabsContent>
 
           <TabsContent value="extraction" className="space-y-6">
+            <CertificatScolariteGenerator />
             <BulletinGenerator averageDto={schoolResults} />
             <DifficultyReportGenerator averageDto={schoolResults} />
             <RevisionListGenerator averageDto={schoolResults} />

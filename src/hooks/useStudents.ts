@@ -54,7 +54,7 @@ export const useUpdateStudent = () => {
         throw new Error(message);
       }
     },
-    onSuccess: () => {},
+    onSuccess: () => { },
     onError: (error) => {
       console.error(`Erreur lors de la mise à jour de l'élève`, error);
       return false;
@@ -86,7 +86,7 @@ export const useCreateStudentAttendance = () => {
       }
 
       const { data } = await httpClient.post(
-        `/api/schools/${schoolId}/school-attendances`,
+        `/api/schools/${schoolId}/attendance`,
         newAttendance,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
@@ -132,7 +132,7 @@ export const useReportParentAbsence = () => {
 
       // Use the standard attendance creation endpoint
       const { data } = await httpClient.post(
-        `/api/schools/${schoolId}/school-attendances`,
+        `/api/schools/${schoolId}/attendance`,
         {
           studentId: payload.studentId,
           disciplineId: payload.disciplineId,
@@ -188,7 +188,7 @@ export const useDeleteStudentAttendance = () => {
       }
 
       const { data } = await httpClient.delete(
-        `/api/schools/${schoolId}/school-attendances/${attendanceId}`,
+        `/api/schools/${schoolId}/attendance/${attendanceId}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
@@ -243,7 +243,7 @@ export const useJustifyAttendance = () => {
         `Justifying attendance: studentId=${studentId}, attendanceId=${attendanceId}, schoolId=${schoolId}`,
       );
       const { data } = await httpClient.patch(
-        `/api/schools/${schoolId}/school-attendances/${attendanceId}`,
+        `/api/schools/${schoolId}/attendance/${attendanceId}`,
         { reason: justification },
         {
           headers: {

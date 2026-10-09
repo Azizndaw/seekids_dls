@@ -3,7 +3,7 @@
 
 CREATE TABLE "AppUser" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "email" TEXT NOT NULL,
+    "email" TEXT,
     "password" TEXT NOT NULL,
     "schoolId" TEXT,
     "nom" TEXT,

@@ -52,7 +52,8 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
   const [formData, setFormData] = useState({
     nom: student.nom,
     prenom: student.prenom,
-    date_naissance: new Date(student.dateOfBirth).toISOString().split("T")[0],
+    date_naissance: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split("T")[0] : "",
+    lieu_naissance: student.lieu_naissance || "Dakar",
     parent_id: student.parentId || "",
     classe_id: student.classeId || "",
   });
@@ -73,6 +74,7 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
           nom: formData.nom,
           prenom: formData.prenom,
           dateOfBirth: formData.date_naissance || null,
+          lieu_naissance: formData.lieu_naissance || "Dakar",
           parentId: formData.parent_id || null,
           classeId: formData.classe_id || null,
           moyenne: student.moyenne,
@@ -182,14 +184,26 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="date_naissance">Date de naissance</Label>
-            <Input
-              id="date_naissance"
-              type="date"
-              value={formData.date_naissance}
-              onChange={(e) => setFormData({ ...formData, date_naissance: e.target.value })}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="date_naissance">Date de naissance</Label>
+              <Input
+                id="date_naissance"
+                type="date"
+                value={formData.date_naissance}
+                onChange={(e) => setFormData({ ...formData, date_naissance: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="lieu_naissance">Lieu de naissance</Label>
+              <Input
+                id="lieu_naissance"
+                type="text"
+                placeholder="Ex: Dakar"
+                value={formData.lieu_naissance}
+                onChange={(e) => setFormData({ ...formData, lieu_naissance: e.target.value })}
+              />
+            </div>
           </div>
 
           <div>

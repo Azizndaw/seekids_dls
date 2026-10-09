@@ -10,25 +10,17 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       '/api': {
-        target: 'https://api.seekids.net',
+        target: 'https://seekids-api.serigneabdouazizndaw.workers.dev',
         changeOrigin: true,
         headers: {
           Origin: 'http://localhost:8080'
         }
       },
       '/auth': {
-        target: 'https://api.seekids.net',
+        target: 'https://seekids-api.serigneabdouazizndaw.workers.dev',
         changeOrigin: true,
         headers: {
           Origin: 'http://localhost:8080'
-        }
-      },
-      '/socket.io': {
-        target: 'https://api.seekids.net',
-        changeOrigin: true,
-        ws: true,
-        headers: {
-          Origin: 'https://api.seekids.net'
         }
       }
     }

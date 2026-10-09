@@ -12,7 +12,7 @@ cours.get('/', async (c) => {
      LEFT JOIN Discipline d ON co.disciplineId = d.id
      LEFT JOIN Classe c ON co.classeId = c.id
      LEFT JOIN AppUser u ON co.professeurId = u.id
-     WHERE co.schoolId = ? ORDER BY co.jour, co.heureDebut`
+     WHERE co.schoolId = ? ORDER BY co.jour, co.heure`
     ).bind(schoolId).all();
     return c.json(results);
 });
@@ -34,7 +34,7 @@ cours.get('/classe/:classeId', async (c) => {
      LEFT JOIN Discipline d ON co.disciplineId = d.id
      LEFT JOIN AppUser u ON co.professeurId = u.id
      WHERE co.classeId = ? AND co.schoolId = ?
-     ORDER BY co.jour, co.heureDebut`
+     ORDER BY co.jour, co.heure`
     ).bind(classeId, schoolId).all();
     return c.json(results);
 });
@@ -50,7 +50,7 @@ cours.get('/day/:day', async (c) => {
      LEFT JOIN Classe c ON co.classeId = c.id
      LEFT JOIN AppUser u ON co.professeurId = u.id
      WHERE co.jour = ? AND co.schoolId = ?
-     ORDER BY co.heureDebut`
+     ORDER BY co.heure`
     ).bind(day, schoolId).all();
     return c.json(results);
 });
@@ -59,14 +59,27 @@ cours.get('/day/:day', async (c) => {
 cours.get('/professeur/:professeurId', async (c) => {
     const professeurId = c.req.param('professeurId');
     const schoolId = c.req.param('schoolId');
-    const { results } = await getDB(c).prepare(
-        `SELECT co.*, d.name as disciplineName, c.nom as classeName
+
+    // First find teacher name to allow fallback matching by teacher name if ID differs
+    const teacherUser = await getDB(c).prepare('SELECT nom, prenom FROM AppUser WHERE id = ?').bind(professeurId).first<{ nom: string; prenom: string }>();
+
+    let query = `SELECT co.*, d.name as disciplineName, c.nom as classeName, c.niveau as classeNiveau
      FROM Cours co
      LEFT JOIN Discipline d ON co.disciplineId = d.id
      LEFT JOIN Classe c ON co.classeId = c.id
-     WHERE co.professeurId = ? AND co.schoolId = ?
-     ORDER BY co.jour, co.heureDebut`
-    ).bind(professeurId, schoolId).all();
+     WHERE (co.professeurId = ?`;
+
+    const params: any[] = [professeurId];
+
+    if (teacherUser && (teacherUser.nom || teacherUser.prenom)) {
+        query += ` OR co.professeurId IN (SELECT id FROM AppUser WHERE schoolId = ? AND (LOWER(nom) = LOWER(?) OR LOWER(prenom) = LOWER(?)))`;
+        params.push(schoolId, teacherUser.nom || '', teacherUser.prenom || '');
+    }
+
+    query += `) AND co.schoolId = ? ORDER BY co.jour, co.heure`;
+    params.push(schoolId);
+
+    const { results } = await getDB(c).prepare(query).bind(...params).all();
     return c.json(results);
 });
 
@@ -80,7 +93,7 @@ cours.get('/professeur/:professeurId/day/:day', async (c) => {
      LEFT JOIN Discipline d ON co.disciplineId = d.id
      LEFT JOIN Classe c ON co.classeId = c.id
      WHERE co.professeurId = ? AND co.jour = ? AND co.schoolId = ?
-     ORDER BY co.heureDebut`
+     ORDER BY co.heure`
     ).bind(professeurId, day, schoolId).all();
     return c.json(results);
 });
@@ -91,9 +104,9 @@ cours.post('/', async (c) => {
     const body = await c.req.json();
     const id = crypto.randomUUID();
     await getDB(c).prepare(
-        `INSERT INTO Cours (id, jour, heureDebut, heureFin, disciplineId, classeId, professeurId, schoolId)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, body.jour, body.heureDebut, body.heureFin, body.disciplineId, body.classeId, body.professeurId, schoolId).run();
+        `INSERT INTO Cours (id, jour, heure, disciplineId, classeId, professeurId, schoolId)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, body.jour, body.heure, body.disciplineId, body.classeId, body.professeurId, schoolId).run();
     return c.json({ id, ...body }, 201);
 });
 
@@ -102,8 +115,8 @@ cours.put('/:coursId', async (c) => {
     const coursId = c.req.param('coursId');
     const body = await c.req.json();
     await getDB(c).prepare(
-        'UPDATE Cours SET jour = ?, heureDebut = ?, heureFin = ?, disciplineId = ?, classeId = ?, professeurId = ? WHERE id = ?'
-    ).bind(body.jour, body.heureDebut, body.heureFin, body.disciplineId, body.classeId, body.professeurId, coursId).run();
+        'UPDATE Cours SET jour = ?, heure = ?, disciplineId = ?, classeId = ?, professeurId = ? WHERE id = ?'
+    ).bind(body.jour, body.heure, body.disciplineId, body.classeId, body.professeurId, coursId).run();
     return c.json({ message: 'Cours mis à jour' });
 });
 

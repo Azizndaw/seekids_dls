@@ -59,7 +59,6 @@ const CourseForm = ({ onBack, onSave, initialData, selectedDay }: CourseFormProp
     startTime,
     endTime,
   });
-  console.log("iniy", formData);
   const coursMutation = useCreateCours();
   const coursUpdateMutation = useUpdateCours();
 

@@ -60,7 +60,8 @@ const DataExtraction = () => {
     );
   }
 
-  const classes = schoolResults.classAverages.map((ca) => ({
+  const classListSafe = schoolResults.classAverages || (Array.isArray(schoolResults) ? schoolResults : []) || [];
+  const classes = classListSafe.map((ca: any) => ({
     id: ca.classeId,
     name: ca.classe,
   }));
@@ -103,9 +104,8 @@ const DataExtraction = () => {
         Absences: student.absences,
         Retards: student.retards,
       }));
-      filename = `donnees_eleves_${
-        selectedClass === "allClass" ? "toutes_classes" : selectedClassName?.replace(" ", "_")
-      }.xlsx`;
+      filename = `donnees_eleves_${selectedClass === "allClass" ? "toutes_classes" : selectedClassName?.replace(" ", "_")
+        }.xlsx`;
     } else {
       dataToExport = teachersData.map((teacher) => ({
         Nom: teacher.nom,

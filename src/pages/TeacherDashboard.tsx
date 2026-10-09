@@ -27,7 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useGetCurrentTeacher } from "@/hooks/useUsers";
+import { useGetCurrentTeacher, useClasses } from "@/hooks/useUsers";
 import { transformToRecentClasses, useGetCoursByProfesseur } from "@/hooks/useCours";
 import { useSchoolLogo } from "@/hooks/useSchoolLogo";
 import ExerciceModal from "@/components/teacher/ExerciceModal";
@@ -36,6 +36,7 @@ const TeacherDashboard = () => {
   const navigate = useNavigate();
   const { authUser } = useAuth();
   const { data: currentCourses } = useGetCoursByProfesseur();
+  const { data: allClasses } = useClasses();
 
   const { data: currentTeacher, isLoading, error } = useGetCurrentTeacher(authUser);
   const schoolLogo = useSchoolLogo();
@@ -57,19 +58,19 @@ const TeacherDashboard = () => {
   const stats = [
     {
       title: "Mes Classes",
-      value: currentTeacher.classes.length,
+      value: currentTeacher?.classes?.length || new Set(currentCourses?.map(c => c.classeId)).size || 0,
       icon: Users,
       color: "bg-blue-500 dark:bg-blue-600",
     },
     {
       title: "Élèves Total",
-      value: currentTeacher.totalStudents,
+      value: currentTeacher?.totalStudents || 0,
       icon: UserCheck,
       color: "bg-green-500 dark:bg-green-600",
     },
     {
       title: "Cours Aujourd'hui",
-      value: recentClasses.length,
+      value: recentClasses?.length || 0,
       icon: BookOpen,
       color: "bg-purple-500 dark:bg-purple-600",
     },
@@ -108,7 +109,16 @@ const TeacherDashboard = () => {
   ];
 
   // Flatten students list for the modal
-  const classes = currentTeacher?.classes?.map((cls) => cls.classe) ?? [];
+  const teacherClasses = allClasses?.filter((cls: any) =>
+    cls.professeurs?.some((p: any) => p.professeurId === authUser?.id)
+  ) || [];
+  const courseClasses = currentCourses?.map((c) => c.classe).filter(Boolean) || [];
+
+  const allClassesRaw = [...teacherClasses, ...courseClasses];
+  const uniqueClassesMap = new Map();
+  allClassesRaw.forEach(c => uniqueClassesMap.set(c.id, c));
+  const classes = Array.from(uniqueClassesMap.values());
+
   const allStudents = classes.flatMap((cls) => cls.students || []);
   // Prepare classes list for the modal
   const classesList = classes.map((cls) => ({ id: cls.id, nom: `${cls.niveau} ${cls.nom}` }));

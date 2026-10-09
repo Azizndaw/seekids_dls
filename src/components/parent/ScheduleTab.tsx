@@ -125,14 +125,14 @@ const ScheduleTab = ({ weekSchedule }: ScheduleTabProps) => {
             </Button>
           </div>
         </CardTitle>
-        <CardDescription className="text-gray-600 dark:text-gray-300">
-          {getCurrentDate(selectedDayIndex - currentDayIndex)}
+        <div className="text-sm text-gray-600 dark:text-gray-300 mt-1.5 flex items-center">
+          <span>{getCurrentDate(selectedDayIndex - currentDayIndex)}</span>
           {selectedDayIndex === currentDayIndex && (
             <Badge className="ml-2 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
               Aujourd'hui
             </Badge>
           )}
-        </CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">

@@ -20,7 +20,7 @@ export const useEmargements = () => {
   const { authUser } = useAuth();
   const schoolId = authUser?.schoolId;
   return useQuery<any[], Error>({
-    queryKey: ["emargements", schoolId],
+    queryKey: ["emargements", schoolId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       const { data } = await httpClient.get(`/api/schools/${schoolId}/emargements`, {
         headers: {
@@ -36,7 +36,7 @@ export const useEmargements = () => {
 // Hook for fetching a specific emargement by its ID
 export const useEmargementById = (schoolId: string, emargementId: string) => {
   return useQuery<IEmargement, Error>({
-    queryKey: ["emargement", schoolId, emargementId],
+    queryKey: ["emargement", schoolId, emargementId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       const { data } = await httpClient.get(
         `/api/schools/${schoolId}/emargements/${emargementId}`,
@@ -55,10 +55,10 @@ export const useEmargementById = (schoolId: string, emargementId: string) => {
 // Hook for fetching emargements for a specific professor
 export const useEmargementsByProfessor = (schoolId: string, professeurId: string) => {
   return useQuery<any[], Error>({
-    queryKey: ["emargementsByProfessor", schoolId, professeurId],
+    queryKey: ["emargementsByProfessor", schoolId, professeurId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       const { data } = await httpClient.get(
-        `/api/schools/${schoolId}/emargements/user/${professeurId}`,
+        `/api/schools/${schoolId}/emargements/professeur/${professeurId}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,

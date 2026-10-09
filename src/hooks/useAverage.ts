@@ -157,7 +157,7 @@ export const useGetSchoolAverage = (semester: string = "1") => {
   const schoolId = authUser?.schoolId;
 
   return useQuery<SchoolAverageDTO | null>({
-    queryKey: ["school-average", schoolId, semester],
+    queryKey: ["school-average", schoolId, semester, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       const params: any = {};
       if (semester && semester !== "annual") {
@@ -186,7 +186,7 @@ export const useGetClasseAverageOrAll = (classeId: string) => {
   const classIds = schoolResults?.classAverages.map((ca) => ca.classeId) ?? [];
 
   return useQuery({
-    queryKey: ["classe-average-or-all", classeId, schoolId],
+    queryKey: ["classe-average-or-all", classeId, schoolId, localStorage.getItem("academicYear") || "2026-2027"],
     queryFn: async () => {
       if (!schoolId) return null;
 
