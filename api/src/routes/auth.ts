@@ -163,7 +163,7 @@ auth.get('/me/role/:role', async (c) => {
     const user = c.get('user') as JWTPayload;
     if (!user) return c.json({ error: 'Non authentifié' }, 401);
 
-    const fullUser = await getDB(c).prepare(
+    let fullUser = await getDB(c).prepare(
         `SELECT u.*, GROUP_CONCAT(d.name) as disciplineNames, GROUP_CONCAT(d.id) as disciplineIds
      FROM AppUser u
      LEFT JOIN "_TeacherDisciplines" td ON u.id = td.A
@@ -172,7 +172,24 @@ auth.get('/me/role/:role', async (c) => {
      GROUP BY u.id`
     ).bind(user.userId).first();
 
-    if (!fullUser) return c.json({ error: 'Utilisateur non trouvé' }, 404);
+    // Fallback: si l'ID a changé mais que le téléphone ou email est dans le token
+    if (!fullUser && (user.telephone || user.email) && user.schoolId) {
+        const phone = user.telephone || '';
+        const phoneNo221 = phone.replace(/^221/, '');
+        fullUser = await getDB(c).prepare(
+            `SELECT u.*, GROUP_CONCAT(d.name) as disciplineNames, GROUP_CONCAT(d.id) as disciplineIds
+         FROM AppUser u
+         LEFT JOIN "_TeacherDisciplines" td ON u.id = td.A
+         LEFT JOIN Discipline d ON td.B = d.id
+         WHERE (
+            (u.telephone IS NOT NULL AND u.telephone != '' AND (u.telephone = ? OR u.telephone = ?))
+            OR (u.email IS NOT NULL AND u.email != '' AND u.email = ?)
+         ) AND u.schoolId = ?
+         GROUP BY u.id`
+        ).bind(phone, phoneNo221, user.email || '__NO_EMAIL__', user.schoolId).first();
+    }
+
+    if (!fullUser) return c.json({ error: 'Session expirée ou utilisateur non trouvé' }, 401);
 
     let children: any[] = [];
     let classes: any[] = [];

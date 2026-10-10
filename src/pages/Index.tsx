@@ -38,8 +38,9 @@ const Index = () => {
   const { toast } = useToast();
 
   React.useEffect(() => {
+    const token = localStorage.getItem("accessToken");
     const storedUser = localStorage.getItem("utilisateur_connecte");
-    if (storedUser) {
+    if (storedUser && token) {
       try {
         const user = JSON.parse(storedUser);
         const roles = Array.isArray(user.role) ? user.role : [user.role];
@@ -53,6 +54,8 @@ const Index = () => {
       } catch (e) {
         console.error("Erreur lors de la lecture de la session:", e);
       }
+    } else if (!token && storedUser) {
+      localStorage.removeItem("utilisateur_connecte");
     }
   }, [navigate]);
 

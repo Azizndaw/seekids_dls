@@ -41,9 +41,30 @@ const TeacherDashboard = () => {
   const { data: currentTeacher, isLoading, error } = useGetCurrentTeacher(authUser);
   const schoolLogo = useSchoolLogo();
 
-  if (!(currentCourses && currentTeacher && authUser) || isLoading) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
+        <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Session expirée</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md">
+          Votre session a expiré ou vos informations doivent être actualisées suite à la mise à jour de l'emploi du temps.
+        </p>
+        <Button
+          onClick={() => {
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("authUser");
+            window.location.href = "/";
+          }}
+          className="bg-primary hover:bg-primary/90 text-white font-medium px-6 py-2 rounded-lg">
+          Se reconnecter
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !(currentCourses && currentTeacher && authUser)) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-8">
         <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );

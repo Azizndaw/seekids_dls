@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo } from "react";
+import React, { useContext, useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ClipboardCheck, Calendar, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  ClipboardCheck,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  Lock,
+  Sparkles,
+  BookOpen,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateEmargement, useEmargementsByProfessor } from "@/hooks/useEmargement";
 import { SocketContext } from "@/socket/SocketContext";
@@ -39,18 +48,32 @@ interface AttendanceSheetData {
 }
 
 interface TeacherAttendanceSheetProps {
-  subjects: { id: string; name: string }[];
+  subjects?: { id: string; name: string }[];
   classes: { id: string; niveau: string; nom?: string }[];
 }
 
-const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetProps) => {
+interface ParsedSlot {
+  id: string;
+  startRaw: string;
+  endRaw: string;
+  display: string;
+  durationMinutes: number;
+  calculatedSessions: number;
+  disciplineId: string;
+  disciplineName: string;
+  isTaken: boolean;
+}
+
+const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceSheetProps) => {
   const { toast } = useToast();
   const { socket } = useContext(SocketContext);
   const { authUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const { data: courses = [] } = useGetCoursByProfesseur();
-  // Fetch existing attendance records to check for duplicates
-  const { data: existingEmargements = [] } = useEmargementsByProfessor(authUser?.schoolId || "", authUser?.id || "");
+  const { data: existingEmargements = [] } = useEmargementsByProfessor(
+    authUser?.schoolId || "",
+    authUser?.id || ""
+  );
 
   const [formData, setFormData] = useState<AttendanceSheetData>({
     subject: "",
@@ -62,153 +85,207 @@ const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetPro
     courseSummary: "",
     notes: "",
   });
+
+  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
   const createAttendanceMutation = useCreateEmargement();
 
-  // --- Helper: Get Scheduled Slots for Selected Date/Class/Subject ---
-  const scheduledSlots = useMemo(() => {
-    if (!formData.date || !formData.class || !formData.subject) return [];
+  // 1. Filtrer les classes pour privilégier celles où l'enseignant a des cours
+  const teacherClasses = useMemo(() => {
+    if (!courses || courses.length === 0) return classes;
+    const teacherClassIds = new Set(courses.map((c) => c.classeId));
+    const assignedClasses = classes.filter((cls) => teacherClassIds.has(cls.id));
+    return assignedClasses.length > 0 ? assignedClasses : classes;
+  }, [classes, courses]);
+
+  // Si aucune classe n'est sélectionnée, présélectionner la 1ère classe de l'enseignant
+  useEffect(() => {
+    if (isOpen && !formData.class && teacherClasses.length > 0) {
+      setFormData((prev) => ({ ...prev, class: teacherClasses[0].id }));
+    }
+  }, [isOpen, teacherClasses, formData.class]);
+
+  // Fonction utilitaire pour parser un créneau et calculer les séances
+  const parseSlot = (c: any): Omit<ParsedSlot, "isTaken"> => {
+    const parseTimePart = (t: string) => {
+      const clean = t.toLowerCase().replace("h", ":").trim();
+      let h = 0;
+      let m = 0;
+      if (clean.includes(":")) {
+        const parts = clean.split(":");
+        h = parseInt(parts[0], 10) || 0;
+        m = parseInt(parts[1], 10) || 0;
+      } else {
+        const val = parseInt(clean, 10);
+        if (val >= 24) {
+          h = Math.floor(val / 100);
+          m = val % 100;
+        } else {
+          h = val || 0;
+          m = 0;
+        }
+      }
+      return { h, m };
+    };
+
+    const cleanHeure = (c.heure || "").replace(/\s/g, "");
+    let startH = 0;
+    let startM = 0;
+    let endH = 0;
+    let endM = 0;
+
+    if (cleanHeure.includes("-")) {
+      const [startStr, endStr] = cleanHeure.split("-");
+      const start = parseTimePart(startStr);
+      const end = parseTimePart(endStr);
+      startH = start.h;
+      startM = start.m;
+      endH = end.h;
+      endM = end.m;
+    } else {
+      const start = parseTimePart(cleanHeure);
+      startH = start.h;
+      startM = start.m;
+      endH = startH + 1;
+      endM = startM;
+    }
+
+    const formatTime = (h: number, m: number) =>
+      `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+
+    const slotStart = formatTime(startH, startM);
+    const slotEnd = formatTime(endH, endM);
+    const durationMinutes = endH * 60 + endM - (startH * 60 + startM);
+
+    // Calcul automatique et strict du nombre de séances selon la durée de cours :
+    // - Moins de 60 min (ex: 40 min) -> 1 séance
+    // - Entre 60 min et 120 min (ex: 1h30 / 90 min) -> 2 séances
+    // - Entre 120 min et 180 min (ex: 2h20) -> 3 séances
+    // - Au-delà (ex: 3h20 / 200 min) -> 4 séances
+    let calculatedSessions = 1;
+    if (durationMinutes > 175) {
+      calculatedSessions = Math.round(durationMinutes / 50);
+    } else if (durationMinutes > 115) {
+      calculatedSessions = 3;
+    } else if (durationMinutes > 55) {
+      calculatedSessions = 2;
+    } else {
+      calculatedSessions = 1;
+    }
+
+    return {
+      id: c.id,
+      startRaw: slotStart,
+      endRaw: slotEnd,
+      display: `${slotStart} - ${slotEnd}`,
+      durationMinutes,
+      calculatedSessions,
+      disciplineId: c.disciplineId,
+      disciplineName: c.discipline?.name || c.disciplineName || "",
+    };
+  };
+
+  // 2. Détection automatique des créneaux planifiés pour la date et la classe
+  const scheduledSlots = useMemo<ParsedSlot[]>(() => {
+    if (!formData.date || !formData.class || !courses) return [];
 
     const dayName = format(new Date(formData.date), "EEEE", { locale: fr });
-    const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const norm = (s: string) =>
+      (s || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    const targetDay = norm(dayName);
 
-    const dayCourses = courses.filter(
-      (c) =>
-        c.jour === capitalizedDay &&
+    const dayCourses = courses.filter((c) => {
+      const cDay = norm(c.jour);
+      return (
         c.classeId === formData.class &&
-        c.disciplineId === formData.subject
-    );
-
-    const emargementsForDay = existingEmargements.filter(e => {
-      return e.debut.startsWith(formData.date) &&
-        e.classeId === formData.class &&
-        e.disciplineId === formData.subject;
+        (cDay === targetDay || cDay.includes(targetDay) || targetDay.includes(cDay))
+      );
     });
 
+    const emargementsForDay = existingEmargements.filter(
+      (e) => e.debut.startsWith(formData.date) && e.classeId === formData.class
+    );
+
     return dayCourses.map((c) => {
-      // Parse time format "08h - 10h" or "08:00" or similar
-
-      // Helper to parse time strings like "14:00", "14h30", "1400", "8"
-      const parseTimePart = (t: string) => {
-        let clean = t.toLowerCase().replace("h", ":");
-        let h = 0, m = 0;
-
-        if (clean.includes(":")) {
-          const parts = clean.split(":");
-          h = parseInt(parts[0]);
-          m = parseInt(parts[1]) || 0;
-        } else {
-          // No separator: check if it's like "1400" or just "14"
-          const val = parseInt(clean);
-          if (val >= 24) { // likely HHMM format like 1400
-            h = Math.floor(val / 100);
-            m = val % 100;
-          } else {
-            h = val;
-            m = 0;
-          }
-        }
-        return { h, m };
-      };
-
-      let cleanHeure = c.heure.replace(/\s/g, "");
-      let startH = 0, startM = 0;
-      let endH = 0, endM = 0;
-
-      if (cleanHeure.includes("-")) {
-        const [startStr, endStr] = cleanHeure.split("-");
-        const start = parseTimePart(startStr);
-        const end = parseTimePart(endStr);
-        startH = start.h; startM = start.m;
-        endH = end.h; endM = end.m;
-      } else {
-        const start = parseTimePart(cleanHeure);
-        startH = start.h; startM = start.m;
-        endH = startH + 1; // Default duration 1h
-        endM = startM;
-      }
-
-      const formatTime = (h: number, m: number) =>
-        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-
-      const slotStart = formatTime(startH, startM);
-      const slotEnd = formatTime(endH, endM);
-
-      const isTaken = emargementsForDay.some(e => {
-        const eStart = e.debut.split("T")[1].substring(0, 5);
-        return eStart >= slotStart && eStart < slotEnd;
+      const parsed = parseSlot(c);
+      const isTaken = emargementsForDay.some((e) => {
+        const eStart = e.debut.split("T")[1]?.substring(0, 5) || "";
+        return eStart >= parsed.startRaw && eStart < parsed.endRaw;
       });
 
       return {
-        startRaw: slotStart,
-        endRaw: slotEnd,
-        display: `${slotStart} - ${slotEnd}`,
-        isTaken: isTaken
+        ...parsed,
+        isTaken,
       };
     });
-  }, [formData.date, formData.class, formData.subject, courses, existingEmargements]);
+  }, [formData.date, formData.class, courses, existingEmargements]);
 
+  // 3. Mise à jour automatique et fixation des heures, matière et séances
+  useEffect(() => {
+    if (scheduledSlots.length > 0) {
+      // Trouver le créneau actif (soit celui sélectionné, soit le premier disponible non émargé)
+      const activeSlot =
+        scheduledSlots.find((s) => s.id === selectedSlotId) ||
+        scheduledSlots.find((s) => !s.isTaken) ||
+        scheduledSlots[0];
+
+      if (activeSlot) {
+        setSelectedSlotId(activeSlot.id);
+        setFormData((prev) => ({
+          ...prev,
+          subject: activeSlot.disciplineId,
+          startTime: activeSlot.startRaw,
+          endTime: activeSlot.endRaw,
+          sessionCount: activeSlot.calculatedSessions,
+        }));
+      }
+    } else {
+      setSelectedSlotId("");
+      setFormData((prev) => ({
+        ...prev,
+        startTime: "",
+        endTime: "",
+        sessionCount: 1,
+      }));
+    }
+  }, [scheduledSlots, selectedSlotId]);
+
+  const activeSlot = useMemo(() => {
+    return scheduledSlots.find((s) => s.id === selectedSlotId);
+  }, [scheduledSlots, selectedSlotId]);
+
+  const selectedDisciplineName = useMemo(() => {
+    if (activeSlot?.disciplineName) return activeSlot.disciplineName;
+    const match = subjects.find((s) => s.id === formData.subject);
+    return match ? match.name : "";
+  }, [activeSlot, subjects, formData.subject]);
 
   const handleSubmit = async () => {
     if (!formData.subject || !formData.class || !formData.startTime || !formData.endTime) {
       toast({
         title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
+        description: "Veuillez sélectionner une classe avec un créneau valide.",
         variant: "destructive",
       });
       return;
     }
 
-    if (scheduledSlots.length === 0) {
+    if (!formData.courseSummary.trim()) {
       toast({
-        title: "Planning non respecté",
-        description: "Aucun cours n'est planifié pour cette classe et cette matière à cette date.",
+        title: "Résumé requis",
+        description: "Veuillez renseigner le résumé ou les notions abordées dans ce cours.",
         variant: "destructive",
       });
       return;
     }
 
-    // --- Validation Logic ---
-    const matchingSlot = scheduledSlots.find(slot => {
-      // Relaxed check: user start time must be >= slot start AND user end time <= slot end
-      return formData.startTime >= slot.startRaw && formData.endTime <= slot.endRaw && formData.startTime < formData.endTime;
-    });
-
-    if (!matchingSlot) {
-      toast({
-        title: "Horaire invalide",
-        description: `Votre émargement (${formData.startTime} - ${formData.endTime}) ne correspond pas à vos horaires planifiés.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (matchingSlot.isTaken) {
+    if (activeSlot?.isTaken) {
       toast({
         title: "Déjà émargé",
-        description: `Un émargement existe déjà pour le créneau ${matchingSlot.display}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Double check against actual overlaps (in case multiple slots/day)
-    const emargementsForDay = existingEmargements.filter(e =>
-      e.debut.startsWith(formData.date) &&
-      e.classeId === formData.class &&
-      e.disciplineId === formData.subject
-    );
-    const isOverlapping = emargementsForDay.some(e => {
-      const eStart = e.debut.split("T")[1].substring(0, 5);
-      const eEnd = e.fin.split("T")[1].substring(0, 5);
-
-      // Overlap logic: (StartA < EndB) and (EndA > StartB)
-      return formData.startTime < eEnd && formData.endTime > eStart;
-    });
-
-    if (isOverlapping) {
-      toast({
-        title: "Chevauchement détecté",
-        description: "Vous avez déjà émargé sur cette plage horaire.",
+        description: `Un émargement existe déjà pour le créneau ${activeSlot.display}.`,
         variant: "destructive",
       });
       return;
@@ -226,18 +303,16 @@ const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetPro
     });
 
     toast({
-      title: "Émargement envoyé",
-      description: "Votre feuille d'émargement a été transmise à l'administration",
+      title: "Émargement enregistré",
+      description: `Feuille de cours validée : ${formData.sessionCount} séance(s) transmise(s) avec succès.`,
     });
 
     // Envoyer une notification via Socket.IO
     if (socket) {
       const selectedClassObj = classes.find((c) => c.id === formData.class);
-      const selectedSubjectObj = subjects.find((s) => s.id === formData.subject);
-
       const notificationPayload = {
         type: "attendance",
-        message: `Nouvelle feuille d'émargement pour la classe ${selectedClassObj?.niveau || ""} ${selectedClassObj?.nom || ""} en ${selectedSubjectObj?.name || ""}`,
+        message: `Nouvel émargement automatique : ${selectedClassObj?.niveau || ""} ${selectedClassObj?.nom || ""} (${formData.startTime}-${formData.endTime}) en ${selectedDisciplineName}`,
         urgent: true,
         date: new Date().toISOString(),
         recipients: ["admin"],
@@ -246,17 +321,12 @@ const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetPro
       socket.emit("send_notification", notificationPayload);
     }
 
-    // Reset form
-    setFormData({
-      subject: "",
-      class: "",
-      date: new Date().toISOString().split("T")[0],
-      startTime: "",
-      endTime: "",
-      sessionCount: 1,
+    // Reset du contenu uniquement
+    setFormData((prev) => ({
+      ...prev,
       courseSummary: "",
       notes: "",
-    });
+    }));
   };
 
   return (
@@ -265,9 +335,9 @@ const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetPro
         <Button
           variant="outline"
           className="h-auto p-2 sm:p-3 lg:p-4 flex flex-col items-center space-y-1 sm:space-y-2 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white transition-all duration-200">
-          <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-gray-700 dark:text-gray-300" />
+          <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-primary" />
           <div className="text-center">
-            <div className="font-medium text-xs sm:text-sm text-gray-900 dark:text-white">
+            <div className="font-semibold text-xs sm:text-sm text-gray-900 dark:text-white">
               Émargement
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
@@ -277,191 +347,239 @@ const TeacherAttendanceSheet = ({ subjects, classes }: TeacherAttendanceSheetPro
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardCheck className="w-5 h-5" />
-            Feuille d'Émargement
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+            <ClipboardCheck className="w-6 h-6 text-primary" />
+            Feuille d'Émargement Automatique
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Informations de base */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Informations du Cours
+        <div className="space-y-5">
+          {/* Étape 1 : Classe et Date */}
+          <Card className="border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between text-blue-900 dark:text-blue-200">
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  1. Sélection de la Classe & Date
+                </span>
+                <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Horaires automatiques
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="date">Date</Label>
+                  <Label htmlFor="date" className="font-medium text-xs uppercase text-gray-700 dark:text-gray-300">
+                    Date du cours
+                  </Label>
                   <Input
+                    id="date"
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="mt-1 bg-white dark:bg-gray-800"
                   />
-                </div>
-                <div className="col-span-2">
-                  {/* Info message about schedule */}
                   {formData.date && (
-                    <div className="text-xs text-muted-foreground mt-8 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Jour : {format(new Date(formData.date), "EEEE d MMMM", { locale: fr })}
-                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1 capitalize">
+                      📅 {format(new Date(formData.date), "EEEE d MMMM yyyy", { locale: fr })}
+                    </p>
                   )}
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="class">Classe *</Label>
+                  <Label htmlFor="class" className="font-medium text-xs uppercase text-gray-700 dark:text-gray-300">
+                    Classe *
+                  </Label>
                   <Select
                     value={formData.class}
                     onValueChange={(value) => setFormData({ ...formData, class: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une classe" />
+                    <SelectTrigger id="class" className="mt-1 bg-white dark:bg-gray-800">
+                      <SelectValue placeholder="Choisir votre classe" />
                     </SelectTrigger>
                     <SelectContent>
-                      {classes.map((classe) => (
+                      {teacherClasses.map((classe) => (
                         <SelectItem key={classe.id} value={classe.id}>
-                          {classe.niveau} {classe.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="subject">Matière *</Label>
-                  <Select
-                    value={formData.subject}
-                    onValueChange={(value) => setFormData({ ...formData, subject: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une matière" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name}
+                          {classe.niveau} {classe.nom || ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              {/* SHOW SCHEDULED SLOTS IF AVAILABLE */}
-              {formData.class && formData.subject && (
-                <div className="my-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-100 dark:border-blue-800">
-                  <Label className="text-blue-700 dark:text-blue-300 text-xs font-semibold uppercase">Horaires planifiés pour ce jour :</Label>
-                  {scheduledSlots.length > 0 ? (
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {scheduledSlots.map((slot, idx) => (
-                        <div key={idx}
-                          className={`px-2 py-1 rounded text-sm font-medium shadow-sm border flex items-center gap-2 ${slot.isTaken
-                            ? "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 border-gray-200"
-                            : "bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-green-200"
-                            }`}>
-                          {slot.display}
-                          {slot.isTaken && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                          {slot.isTaken && <span className="text-xs italic">(Émargé)</span>}
-                        </div>
+          {/* Étape 2 : Créneau, Heures et Séances Fixes */}
+          {scheduledSlots.length > 0 ? (
+            <Card className="border-green-200 dark:border-green-800 bg-green-50/20 dark:bg-green-950/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center justify-between text-green-900 dark:text-green-200">
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-green-600" />
+                    2. Horaires & Séances Fixes
+                  </span>
+                  <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 px-2 py-0.5 rounded-full flex items-center gap-1 font-normal">
+                    <Lock className="w-3 h-3" /> Verrouillé selon planning
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Matière identifiée */}
+                <div className="flex items-center gap-2 p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <BookOpen className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Matière :</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    {selectedDisciplineName || "Non spécifiée"}
+                  </span>
+                </div>
+
+                {/* Si plusieurs créneaux le même jour pour cette classe */}
+                {scheduledSlots.length > 1 && (
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                      Plusieurs créneaux détectés ce jour. Choisissez le créneau :
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {scheduledSlots.map((slot) => (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSlotId(slot.id);
+                            setFormData((prev) => ({
+                              ...prev,
+                              subject: slot.disciplineId,
+                              startTime: slot.startRaw,
+                              endTime: slot.endRaw,
+                              sessionCount: slot.calculatedSessions,
+                            }));
+                          }}
+                          className={`p-2 rounded-lg border text-left transition-all text-xs flex flex-col justify-between ${selectedSlotId === slot.id
+                              ? "border-primary bg-primary/10 text-primary font-semibold ring-2 ring-primary/20"
+                              : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            } ${slot.isTaken ? "opacity-60 bg-gray-100" : ""}`}>
+                          <div className="flex items-center justify-between">
+                            <span>{slot.display}</span>
+                            {slot.isTaken && <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground mt-1">
+                            {slot.calculatedSessions} séance(s) {slot.isTaken ? "• Déjà émargé" : ""}
+                          </span>
+                        </button>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-sm text-red-500 flex items-center gap-1 mt-1">
-                      <AlertTriangle className="w-4 h-4" />
-                      Aucun cours planifié ce jour.
-                    </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startTime">Heure début (Réel) *</Label>
-                  <Input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  />
+                {/* Affichage fixe des heures et du nombre de séances */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <span className="text-[11px] text-muted-foreground block font-medium">Heure Début</span>
+                    <span className="text-base font-bold text-gray-900 dark:text-white font-mono">
+                      {formData.startTime || "--:--"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <span className="text-[11px] text-muted-foreground block font-medium">Heure Fin</span>
+                    <span className="text-base font-bold text-gray-900 dark:text-white font-mono">
+                      {formData.endTime || "--:--"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-primary/30 bg-primary/5">
+                    <span className="text-[11px] text-primary font-medium block">Nb de Séances</span>
+                    <span className="text-base font-bold text-primary flex items-center gap-1">
+                      {formData.sessionCount}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">séance(s)</span>
+                    </span>
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="endTime">Heure fin (Réel) *</Label>
-                  <Input
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  />
-                </div>
+                {activeSlot?.isTaken && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Ce créneau a déjà été émargé pour cette date.</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : formData.class ? (
+            <div className="p-4 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  Aucun cours planifié
+                </h4>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                  Vous n'avez pas de créneau planifié pour cette classe le{" "}
+                  <strong className="capitalize">
+                    {format(new Date(formData.date), "EEEE", { locale: fr })}
+                  </strong>
+                  . Veuillez vérifier la classe sélectionnée ou la date.
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          ) : null}
 
-          {/* Compteur de séances */}
+          {/* Étape 3 : Contenu du cours */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Séances
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ClipboardCheck className="w-4 h-4 text-primary" />
+                3. Contenu Pédagogique
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <div>
-                <Label htmlFor="sessionCount">Nombre de séances *</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={formData.sessionCount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sessionCount: parseInt(e.target.value) })
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Résumé du cours */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Contenu du Cours
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="courseSummary">Résumé du cours</Label>
+                <Label htmlFor="courseSummary" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Résumé du cours enseigné *
+                </Label>
                 <Textarea
-                  placeholder="Décrivez brièvement le contenu du cours..."
+                  id="courseSummary"
+                  placeholder="Ex : Chapitre 3 - Suites arithmétiques, exercices 4 et 5 page 42..."
                   value={formData.courseSummary}
                   onChange={(e) => setFormData({ ...formData, courseSummary: e.target.value })}
                   rows={3}
+                  className="mt-1"
                 />
               </div>
 
               <div>
-                <Label htmlFor="notes">Notes supplémentaires</Label>
+                <Label htmlFor="notes" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Remarques / Observations (Facultatif)
+                </Label>
                 <Textarea
-                  placeholder="Remarques, incidents, points d'attention..."
+                  id="notes"
+                  placeholder="Ex : Bon travail de classe, 2 élèves en retard..."
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   rows={2}
+                  className="mt-1"
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setIsOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={handleSubmit} disabled={scheduledSlots.length === 0}>Envoyer l'Émargement</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                scheduledSlots.length === 0 ||
+                !formData.courseSummary.trim() ||
+                activeSlot?.isTaken ||
+                createAttendanceMutation.isPending
+              }
+              className="bg-primary hover:bg-primary/90 text-white font-semibold">
+              {createAttendanceMutation.isPending ? "Transmission..." : "Envoyer l'Émargement"}
+            </Button>
           </div>
         </div>
       </DialogContent>

@@ -47,6 +47,18 @@ httpClient.interceptors.response.use(
   async (error: AxiosError<any>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    const isAuthMeError = originalRequest.url?.includes('/api/auth/me/') && (error.response?.status === 401 || error.response?.status === 404);
+
+    if (isAuthMeError) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("authUser");
+      localStorage.removeItem("utilisateur_connecte");
+      if (typeof window !== "undefined" && window.location.pathname !== "/") {
+        window.location.href = "/";
+      }
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -85,7 +97,11 @@ httpClient.interceptors.response.use(
       } catch (err) {
         processQueue(err, null);
         localStorage.removeItem("accessToken");
-        window.location.href = "/";
+        localStorage.removeItem("authUser");
+        localStorage.removeItem("utilisateur_connecte");
+        if (typeof window !== "undefined" && window.location.pathname !== "/") {
+          window.location.href = "/";
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
