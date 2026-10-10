@@ -89,20 +89,12 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
   const createAttendanceMutation = useCreateEmargement();
 
-  // 1. Filtrer les classes pour privilégier celles où l'enseignant a des cours
-  const teacherClasses = useMemo(() => {
-    if (!courses || courses.length === 0) return classes;
-    const teacherClassIds = new Set(courses.map((c) => c.classeId));
-    const assignedClasses = classes.filter((cls) => teacherClassIds.has(cls.id));
-    return assignedClasses.length > 0 ? assignedClasses : classes;
-  }, [classes, courses]);
-
-  // Si aucune classe n'est sélectionnée, présélectionner la 1ère classe de l'enseignant
+  // Si aucune classe n'est sélectionnée, présélectionner la 1ère classe
   useEffect(() => {
-    if (isOpen && !formData.class && teacherClasses.length > 0) {
-      setFormData((prev) => ({ ...prev, class: teacherClasses[0].id }));
+    if (isOpen && !formData.class && classes && classes.length > 0) {
+      setFormData((prev) => ({ ...prev, class: classes[0].id }));
     }
-  }, [isOpen, teacherClasses, formData.class]);
+  }, [isOpen, classes, formData.class]);
 
   // Fonction utilitaire pour parser un créneau et calculer les séances
   const parseSlot = (c: any): Omit<ParsedSlot, "isTaken"> => {
@@ -400,7 +392,7 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
                       <SelectValue placeholder="Choisir votre classe" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teacherClasses.map((classe) => (
+                      {classes.map((classe) => (
                         <SelectItem key={classe.id} value={classe.id}>
                           {classe.niveau} {classe.nom || ""}
                         </SelectItem>
@@ -458,8 +450,8 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
                             }));
                           }}
                           className={`p-2 rounded-lg border text-left transition-all text-xs flex flex-col justify-between ${selectedSlotId === slot.id
-                              ? "border-primary bg-primary/10 text-primary font-semibold ring-2 ring-primary/20"
-                              : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            ? "border-primary bg-primary/10 text-primary font-semibold ring-2 ring-primary/20"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                             } ${slot.isTaken ? "opacity-60 bg-gray-100" : ""}`}>
                           <div className="flex items-center justify-between">
                             <span>{slot.display}</span>
