@@ -121,7 +121,7 @@ const ChatTab = ({ children, selectedChild, onSelectChild }: ChatTabProps) => {
     setGroupedConversations(groupedConvos);
   }, [dbConversation]);
 
-  // Merge existing conversations with potential teacher contacts
+  // Merge existing conversations with potential teacher and admin contacts
   const conversations = useMemo(() => {
     const activeConversations = buildConversations(groupedConversations, userId);
 
@@ -141,14 +141,22 @@ const ChatTab = ({ children, selectedChild, onSelectChild }: ChatTabProps) => {
       isPotential: true // Flag to identify these are not real conversations yet
     }));
 
-    return [...activeConversations, ...potentialTeacherConversations];
-  }, [groupedConversations, userId, teacherConversations]);
+    // Add admins who don't have an active conversation yet
+    const potentialAdminConversations = (admins || []).filter(a => !existingPartners.has(a.id)).map(a => ({
+      id: `new_${a.id}`,
+      from: `Admin. ${(a.prenom || "")} ${(a.nom || "")}`.trim(),
+      fromId: a.id,
+      fromType: "ADMIN",
+      lastMessage: "Cliquez pour démarrer une conversation",
+      date: new Date().toISOString(),
+      unread: false,
+      messages: [],
+      isPotential: true
+    }));
 
-  const unknownAdmins = admins?.filter((a) => !conversations?.some((conv) => conv.fromId === a.id));
+    return [...activeConversations, ...potentialTeacherConversations, ...potentialAdminConversations];
+  }, [groupedConversations, userId, teacherConversations, admins]);
 
-  // ... (rest of admin logic)
-
-  // Use the merged conversations list directly
   // Use the merged conversations list directly
   const currentConversations = useMemo(() => {
     return conversations.filter(conv => {
