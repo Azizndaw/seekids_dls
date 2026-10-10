@@ -51,11 +51,12 @@ auth.post('/login', async (c) => {
 
     // Fallbacks apply ONLY when logging in under PARENT or TEACHER profiles respectively
     if (!valid && role === 'PARENT' && roles.includes('PARENT')) {
-        // Universal fallback for default parent password Dls2026
-        if (password.trim().toLowerCase() === 'dls2026') {
+        // Universal fallback for default parent password Dls2027
+        if (password.trim().toLowerCase() === 'dls2027') {
+            console.log(`[AUTH] Allowing generic fallback parent password Dls2027 for user ${user.id}`);
             valid = true;
         } else {
-            valid = await verifyPassword('Dls2026', user.password as string);
+            valid = await verifyPassword('Dls2027', user.password as string);
         }
     } else if (!valid && role === 'TEACHER' && roles.includes('TEACHER')) {
         // Universal fallback for default teacher password Seekids2027
