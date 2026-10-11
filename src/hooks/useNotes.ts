@@ -415,10 +415,10 @@ export const convertStudents = (students: SourceStudent[]): StudentData[] => {
     return [];
   }
 
-  return students.map((s) => {
-    const prenom = s.firstName;
-    const nom = s.lastName;
-    const classe = s.classe;
+  return students.map((s: any) => {
+    const prenom = s.firstName || s.prenom || "";
+    const nom = s.lastName || s.nom || "";
+    const classe = s.classe || s.classeName || "";
 
     const devoirs = (s.grades || [])
       .filter((g) => g.devoir === true)

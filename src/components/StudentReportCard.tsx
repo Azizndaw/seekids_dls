@@ -6,34 +6,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, CalendarDays, Edit, Trash2, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getAverageInterpretation, getAttendanceAlert, getWeakestSubject } from "@/utils/gradeUtils";
+import { getAverageInterpretation, getAttendanceAlert, getWeakestSubject, getMonthNameFromDate } from "@/utils/gradeUtils";
 
 // Helper functions (moved from parent or passed as props if needed)
-const getMonthName = (dateStr: string) => {
-    const parts = dateStr.split("-");
-    if (parts.length < 2) return "";
-    const monthIndex = parseInt(parts[1]) - 1;
-    const date = new Date(2000, monthIndex, 1);
-    const monthName = date.toLocaleString("fr-FR", { month: "long" });
-    return monthName.charAt(0).toUpperCase() + monthName.slice(1);
-};
+const getMonthName = (dateStr: any) => getMonthNameFromDate(dateStr);
 
 const getGradesForMonth = (studentGrades: any[], subject: string, monthName: string, filterSemester: "" | 1 | 2) => {
-    return studentGrades.filter(
+    return (studentGrades || []).filter(
         (g) =>
+            g &&
             g.subject === subject &&
             g.devoir !== false &&
             getMonthName(g.date).toLowerCase() === monthName.toLowerCase() &&
-            (filterSemester === "" || g.semestre.includes(filterSemester))
+            (filterSemester === "" || (g.semestre ? String(g.semestre).includes(String(filterSemester)) : true))
     );
 };
 
 const getCompositionGrades = (studentGrades: any[], subject: string, filterSemester: "" | 1 | 2) => {
-    return studentGrades.filter(
+    return (studentGrades || []).filter(
         (g) =>
+            g &&
             g.subject === subject &&
             g.devoir === false &&
-            (filterSemester === "" || g.semestre.includes(filterSemester))
+            (filterSemester === "" || (g.semestre ? String(g.semestre).includes(String(filterSemester)) : true))
     );
 };
 

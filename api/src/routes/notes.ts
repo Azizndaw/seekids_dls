@@ -120,20 +120,23 @@ notes.get('/averages/classes/:classeId', async (c) => {
     const classeInfo: any = await db.prepare("SELECT nom FROM Classe WHERE id = ?").bind(classeId).first();
     const className = classeInfo?.nom || "Inconnue";
 
-    // 2. Class Stats
+    // 2. Class Stats (tous les élèves inscrits, moyenne des notes si existantes)
     const stats: any = await db.prepare(
-        `SELECT COUNT(DISTINCT studentId) as studentCount, ROUND(AVG(note), 2) as average
-         FROM Note WHERE classeId = ?`
+        `SELECT COUNT(DISTINCT s.id) as studentCount, ROUND(AVG(n.note), 2) as average
+         FROM Student s
+         LEFT JOIN Note n ON n.classeId = s.classeId AND n.studentId = s.id
+         WHERE s.classeId = ?`
     ).bind(classeId).first();
 
-    // 3. Students Data
+    // 3. Students Data (tous les élèves inscrits dans la classe)
     const { results: studentsRaw } = await db.prepare(
         `SELECT s.id, s.nom, s.prenom, 
-            ROUND(SUM(n.note * n.coefficient) / SUM(n.coefficient), 2) as generalAverage
+            ROUND(SUM(n.note * n.coefficient) / NULLIF(SUM(n.coefficient), 0), 2) as generalAverage
          FROM Student s 
-         JOIN Note n ON n.studentId = s.id
-         WHERE n.classeId = ? 
-         GROUP BY s.id ORDER BY generalAverage DESC`
+         LEFT JOIN Note n ON n.studentId = s.id AND n.classeId = s.classeId
+         WHERE s.classeId = ? 
+         GROUP BY s.id, s.nom, s.prenom 
+         ORDER BY s.nom, s.prenom`
     ).bind(classeId).all();
 
     // 4. Get ALL notes for this class to embed in studentsData
@@ -275,13 +278,15 @@ notes.get('/averages/schools', async (c) => {
         average: s.average ? String(s.average) : "0"
     }));
 
-    // 5. Class Averages
+    // 5. Class Averages (compte tous les élèves inscrits dans chaque classe)
     const { results: classesRaw } = await db.prepare(
-        `SELECT c.id as classeId, c.nom as classeName, count(DISTINCT n.studentId) as students,
+        `SELECT c.id as classeId, c.nom as classeName, count(DISTINCT s.id) as students,
          ROUND(AVG(n.note), 2) as average,
          COUNT(n.id) as totalNotes, SUM(CASE WHEN n.note >= 10 THEN 1 ELSE 0 END) as passedNotes
-         FROM Classe c LEFT JOIN Note n ON n.classeId = c.id
-         WHERE c.schoolId = ? GROUP BY c.id ORDER BY c.nom`
+         FROM Classe c 
+         LEFT JOIN Student s ON s.classeId = c.id
+         LEFT JOIN Note n ON n.classeId = c.id AND n.studentId = s.id
+         WHERE c.schoolId = ? GROUP BY c.id, c.nom ORDER BY c.nom`
     ).bind(schoolId).all();
 
     const classAverages = classesRaw.map((cRaw: any) => ({

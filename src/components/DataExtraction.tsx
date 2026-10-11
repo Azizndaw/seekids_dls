@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FileSpreadsheet, Download, Users, GraduationCap, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { useAllTeachers } from "@/hooks/useUsers";
+import { useAllTeachers, useStudents } from "@/hooks/useUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { useGetClasseAverageOrAll, useGetSchoolAverage } from "@/hooks/useAverage";
 import { convertStudents } from "@/hooks/useNotes";
@@ -32,25 +32,50 @@ interface StudentData {
 }
 
 const DataExtraction = () => {
-  const [selectedClass, setSelectedClass] = useState<string>("null");
-  const [selectedClassName, setSelectedClassName] = useState<string>(null);
+  const [selectedClass, setSelectedClass] = useState<string>("allClass");
+  const [selectedClassName, setSelectedClassName] = useState<string>("Toutes les classes");
   const [extractionType, setExtractionType] = useState<"students" | "teachers">("students");
   const [students, setStudents] = useState<any[]>([]);
   const { authUser } = useAuth();
   const { data: teachers } = useAllTeachers(authUser);
   const { data: schoolResults } = useGetSchoolAverage();
+  const { data: allSchoolStudents } = useStudents();
   const { data: classeDetails } = useGetClasseAverageOrAll(selectedClass);
   const updateCounterMutation = useUpdateSchoolReportCounter();
 
   useEffect(() => {
-    if (classeDetails?.length > 0) {
-      setStudents(classeDetails.flatMap((cd) => cd.studentsData));
+    if (Array.isArray(classeDetails) && classeDetails.length > 0) {
+      const flattened = classeDetails.flatMap((cd) => cd?.studentsData || []);
+      if (flattened.length > 0) {
+        setStudents(flattened);
+        return;
+      }
+    }
+    if (classeDetails && !Array.isArray(classeDetails) && (classeDetails as any).studentsData?.length > 0) {
+      setStudents((classeDetails as any).studentsData);
       return;
     }
-    if (classeDetails?.studentsData) {
-      setStudents(classeDetails.studentsData);
+
+    // Fallback: si l'API des moyennes est vide ou en cours, utiliser allSchoolStudents
+    if (allSchoolStudents && allSchoolStudents.length > 0) {
+      const filtered = selectedClass === "allClass"
+        ? allSchoolStudents
+        : allSchoolStudents.filter((s: any) => s.classeId === selectedClass);
+
+      setStudents(
+        filtered.map((s: any) => ({
+          id: s.id,
+          firstName: s.prenom,
+          lastName: s.nom,
+          classe: s.classeName || s.classe?.nom || "Inconnue",
+          grades: [],
+          attendance: [],
+          generalAverage: 0,
+          subjectAverages: {},
+        }))
+      );
     }
-  }, [classeDetails]);
+  }, [classeDetails, allSchoolStudents, selectedClass]);
 
   if (!teachers || !schoolResults) {
     return (
@@ -68,6 +93,10 @@ const DataExtraction = () => {
 
   const handleClassChange = (className: string) => {
     setSelectedClass(className);
+    if (className === "allClass") {
+      setSelectedClassName("Toutes les classes");
+      return;
+    }
     const classe = classes.find((cl) => cl.id == className);
     if (!classe) {
       setSelectedClassName(null);
@@ -76,52 +105,85 @@ const DataExtraction = () => {
     setSelectedClassName(classe.name);
   };
 
-  // Données exemple
+  // Données transformées
   const studentsData: StudentData[] = convertStudents(students);
 
   const teachersData = teachers.map((t) => ({
     nom: t.nom,
     prenom: t.prenom,
     email: t.email,
-    classes: t.classes?.map((c) => `${c.classe?.niveau} ${c.classe?.nom}`),
+    classes: t.classes?.map((c) => `${c.classe?.niveau || ""} ${c.classe?.nom || ""}`.trim()),
     matieres: t.disciplines?.map((d) => d.name),
   }));
 
   const exportToExcel = async () => {
-    let dataToExport;
-    let filename;
+    let dataToExport: any[] = [];
+    let filename: string;
 
     if (extractionType === "students") {
-      dataToExport = studentsData.map((student) => ({
+      let sourceList = studentsData;
+
+      // Dernier filet de sécurité : si studentsData est vide mais qu'on a la liste globale des élèves
+      if (sourceList.length === 0 && allSchoolStudents && allSchoolStudents.length > 0) {
+        const raw = selectedClass === "allClass"
+          ? allSchoolStudents
+          : allSchoolStudents.filter((s: any) => s.classeId === selectedClass);
+        sourceList = convertStudents(
+          raw.map((s: any) => ({
+            id: s.id,
+            firstName: s.prenom,
+            lastName: s.nom,
+            classe: s.classeName || s.classe?.nom || "Inconnue",
+            grades: [],
+            attendance: [],
+            generalAverage: 0,
+            subjectAverages: {},
+          }))
+        );
+      }
+
+      dataToExport = sourceList.map((student) => ({
         Nom: student.nom,
         Prénom: student.prenom,
         Classe: student.classe,
-        "Notes Devoirs": student.notes.devoirs.map((n) => `${n.matiere}: ${n.note}/20`).join(", "),
-        "Notes Compositions": student.notes.compositions
-          .map((n) => `${n.matiere}: ${n.note}/20`)
-          .join(", "),
-        "Moyenne Générale": student.moyenne,
-        Absences: student.absences,
-        Retards: student.retards,
+        "Notes Devoirs": student.notes?.devoirs?.length
+          ? student.notes.devoirs.map((n) => `${n.matiere}: ${n.note}/20`).join(", ")
+          : "Néant",
+        "Notes Compositions": student.notes?.compositions?.length
+          ? student.notes.compositions.map((n) => `${n.matiere}: ${n.note}/20`).join(", ")
+          : "Néant",
+        "Moyenne Générale": student.moyenne ? `${student.moyenne}/20` : "Pas de note",
+        Absences: student.absences || 0,
+        Retards: student.retards || 0,
       }));
-      filename = `donnees_eleves_${selectedClass === "allClass" ? "toutes_classes" : selectedClassName?.replace(" ", "_")
+
+      filename = `donnees_eleves_${selectedClass === "allClass" ? "toutes_classes" : (selectedClassName?.replace(/\s+/g, "_") || "classe")
         }.xlsx`;
     } else {
       dataToExport = teachersData.map((teacher) => ({
         Nom: teacher.nom,
         Prénom: teacher.prenom,
         Email: teacher.email,
-        Matières: teacher.matieres.join(", "),
-        Classes: teacher.classes.join(", "),
+        Matières: (teacher.matieres || []).join(", "),
+        Classes: (teacher.classes || []).join(", "),
       }));
       filename = "donnees_professeurs.xlsx";
+    }
+
+    if (dataToExport.length === 0) {
+      alert("Aucune donnée à exporter pour la sélection actuelle.");
+      return;
     }
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, extractionType === "students" ? "Élèves" : "Professeurs");
     XLSX.writeFile(wb, filename);
-    await updateCounterMutation.mutateAsync();
+    try {
+      await updateCounterMutation.mutateAsync();
+    } catch (e) {
+      console.warn("Could not update school report counter", e);
+    }
   };
 
   return (
@@ -172,7 +234,6 @@ const DataExtraction = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="null">Sélectionner une classe</SelectItem>
                     <SelectItem value="allClass">Toutes les classes</SelectItem>
                     {classes.map((cl) => (
                       <SelectItem key={cl.id} value={cl.id}>

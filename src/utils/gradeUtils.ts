@@ -111,3 +111,91 @@ export const calculatePeriodStats = (allGrades: any[], period: "semestre1" | "se
         gradesData
     };
 };
+
+/**
+ * Robustly converts any date format (string YYYY-MM-DD, DD/MM/YYYY, ISO, timestamp number, Date object)
+ * into a capitalized French month name ("Octobre", "Novembre", etc.).
+ */
+export const getMonthNameFromDate = (dateVal: any): string => {
+    if (dateVal === null || dateVal === undefined || dateVal === "") return "";
+    try {
+        if (typeof dateVal === "number") {
+            const ms = dateVal < 10000000000 ? dateVal * 1000 : dateVal;
+            const d = new Date(ms);
+            if (!isNaN(d.getTime())) {
+                const mName = d.toLocaleString("fr-FR", { month: "long" });
+                return mName.charAt(0).toUpperCase() + mName.slice(1);
+            }
+            return "";
+        }
+
+        if (dateVal instanceof Date) {
+            if (!isNaN(dateVal.getTime())) {
+                const mName = dateVal.toLocaleString("fr-FR", { month: "long" });
+                return mName.charAt(0).toUpperCase() + mName.slice(1);
+            }
+            return "";
+        }
+
+        const dateStr = String(dateVal).trim();
+        if (!dateStr) return "";
+
+        // Numeric string timestamp
+        if (/^\d+$/.test(dateStr)) {
+            const num = Number(dateStr);
+            const ms = num < 10000000000 ? num * 1000 : num;
+            const d = new Date(ms);
+            if (!isNaN(d.getTime())) {
+                const mName = d.toLocaleString("fr-FR", { month: "long" });
+                return mName.charAt(0).toUpperCase() + mName.slice(1);
+            }
+        }
+
+        // DD/MM/YYYY or DD-MM-YYYY
+        if (dateStr.includes("/")) {
+            const parts = dateStr.split("/");
+            if (parts.length === 3) {
+                const [d, m, y] = parts.map(Number);
+                if (!isNaN(m) && m >= 1 && m <= 12) {
+                    const date = new Date(y, m - 1, d || 1);
+                    const mName = date.toLocaleString("fr-FR", { month: "long" });
+                    return mName.charAt(0).toUpperCase() + mName.slice(1);
+                }
+            }
+        }
+
+        // YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+        if (dateStr.includes("-")) {
+            const datePart = dateStr.split("T")[0];
+            const parts = datePart.split("-");
+            if (parts.length >= 2) {
+                let monthIndex = -1;
+                if (parts[0].length === 4) {
+                    // YYYY-MM-DD
+                    monthIndex = parseInt(parts[1], 10) - 1;
+                } else if (parts.length === 3 && parts[2].length === 4) {
+                    // DD-MM-YYYY
+                    monthIndex = parseInt(parts[1], 10) - 1;
+                } else {
+                    monthIndex = parseInt(parts[1], 10) - 1;
+                }
+                if (!isNaN(monthIndex) && monthIndex >= 0 && monthIndex < 12) {
+                    const date = new Date(2000, monthIndex, 1);
+                    const mName = date.toLocaleString("fr-FR", { month: "long" });
+                    return mName.charAt(0).toUpperCase() + mName.slice(1);
+                }
+            }
+        }
+
+        // Fallback: standard Date parsing
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+            const mName = parsed.toLocaleString("fr-FR", { month: "long" });
+            return mName.charAt(0).toUpperCase() + mName.slice(1);
+        }
+    } catch {
+        return "";
+    }
+    return "";
+};
+

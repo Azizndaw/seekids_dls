@@ -15,6 +15,7 @@ import {
 import { useSchoolLogo } from "@/hooks/useSchoolLogo";
 import { useGetClasseAverage } from "@/hooks/useAverage";
 import { generateClassGradeReport } from "@/utils/generateClassGradeReport";
+import { getMonthNameFromDate } from "@/utils/gradeUtils";
 
 interface Grade {
   subject: string;
@@ -68,16 +69,7 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
     "Juillet",
   ];
 
-  const getMonthName = (dateStr: string) => {
-    // dateStr is DD/MM/YYYY from ParentDashboard
-    const parts = dateStr.split("/");
-    if (parts.length !== 3) return "";
-    const [day, month, year] = parts;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    // capitalize first letter
-    const monthName = date.toLocaleString("fr-FR", { month: "long" });
-    return monthName.charAt(0).toUpperCase() + monthName.slice(1);
-  };
+  const getMonthName = (dateStr: any) => getMonthNameFromDate(dateStr);
 
   // Helper to get grades for a specific subject and month (excluding compositions)
   const getGradesForMonth = (subject: string, monthName: string) => {

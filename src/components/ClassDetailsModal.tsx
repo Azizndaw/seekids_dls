@@ -46,6 +46,7 @@ import {
   getAttendanceAlert,
   getWeakestSubject,
   calculatePeriodStats,
+  getMonthNameFromDate,
 } from "@/utils/gradeUtils";
 import { AlertTriangle } from "lucide-react";
 
@@ -184,32 +185,26 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
     "Juillet",
   ];
 
-  const getMonthName = (dateStr: string) => {
-    // dateStr is YYYY-MM-DD from useAverage.ts
-    const parts = dateStr.split("-");
-    if (parts.length < 2) return "";
-    const monthIndex = parseInt(parts[1]) - 1;
-    const date = new Date(2000, monthIndex, 1);
-    const monthName = date.toLocaleString("fr-FR", { month: "long" });
-    return monthName.charAt(0).toUpperCase() + monthName.slice(1);
-  };
+  const getMonthName = (dateStr: any) => getMonthNameFromDate(dateStr);
 
   const getGradesForMonth = (studentGrades: any[], subject: string, monthName: string) => {
-    return studentGrades.filter(
+    return (studentGrades || []).filter(
       (g) =>
+        g &&
         g.subject === subject &&
         g.devoir !== false &&
         getMonthName(g.date).toLowerCase() === monthName.toLowerCase() &&
-        (filterSemester === "" || g.semestre.includes(filterSemester)),
+        (filterSemester === "" || (g.semestre ? String(g.semestre).includes(String(filterSemester)) : true)),
     );
   };
 
   const getCompositionGrades = (studentGrades: any[], subject: string) => {
-    return studentGrades.filter(
+    return (studentGrades || []).filter(
       (g) =>
+        g &&
         g.subject === subject &&
         g.devoir === false &&
-        (filterSemester === "" || g.semestre.includes(filterSemester)),
+        (filterSemester === "" || (g.semestre ? String(g.semestre).includes(String(filterSemester)) : true)),
     );
   };
 
@@ -234,7 +229,7 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
       grade: grade.grade,
       coefficient: grade.coefficient,
       date: grade.date,
-      semester: grade.semestre.includes("1") ? "Semestre 1" : "Semestre 2",
+      semester: (grade.semestre && String(grade.semestre).includes("2")) ? "Semestre 2" : "Semestre 1",
     });
 
     setEditGradeDialog({
