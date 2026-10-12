@@ -117,32 +117,55 @@ schools.get('/:schoolId/students', async (c) => {
 
 // POST /api/schools/:schoolId/students
 schools.post('/:schoolId/students', async (c) => {
-    const schoolId = c.req.param('schoolId');
-    const body = await c.req.json();
-    const id = crypto.randomUUID();
-    const lieuNaissance = body.lieu_naissance || body.lieuOfBirth || 'Dakar';
-    await getDB(c).prepare(
-        'INSERT INTO Student (id, nom, prenom, dateOfBirth, lieu_naissance, schoolId, classeId, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))'
-    ).bind(id, body.nom, body.prenom, body.dateOfBirth, lieuNaissance, schoolId, body.classe || body.classeId, body.parentId || null).run();
-    return c.json({ id, ...body, lieu_naissance: lieuNaissance, schoolId }, 201);
+    try {
+        const schoolId = c.req.param('schoolId');
+        const body = await c.req.json();
+        const id = crypto.randomUUID();
+        const lieuNaissance = body.lieu_naissance || body.lieuOfBirth || 'Dakar';
+        const parentId = (body.parentId && body.parentId !== '-' && body.parentId !== '') ? body.parentId : null;
+        const rawClasse = body.classeId || body.classe;
+        const classeId = (rawClasse && rawClasse !== '-' && rawClasse !== '') ? rawClasse : null;
+
+        await getDB(c).prepare(
+            'INSERT INTO Student (id, nom, prenom, dateOfBirth, lieu_naissance, schoolId, classeId, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))'
+        ).bind(id, body.nom, body.prenom, body.dateOfBirth || '2015-01-01', lieuNaissance, schoolId, classeId, parentId).run();
+        return c.json({ id, ...body, lieu_naissance: lieuNaissance, schoolId }, 201);
+    } catch (err: any) {
+        console.error('Error creating student:', err);
+        return c.json({ error: err.message || 'Erreur lors de la création de l\'élève' }, 500);
+    }
 });
 
 // PUT /api/schools/:schoolId/students/:studentId
 schools.put('/:schoolId/students/:studentId', async (c) => {
-    const studentId = c.req.param('studentId');
-    const body = await c.req.json();
-    const lieuNaissance = body.lieu_naissance || body.lieuOfBirth || 'Dakar';
-    await getDB(c).prepare(
-        'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = COALESCE(?, dateOfBirth), lieu_naissance = COALESCE(?, lieu_naissance), classeId = COALESCE(?, classeId), parentId = COALESCE(?, parentId) WHERE id = ?'
-    ).bind(body.nom, body.prenom, body.dateOfBirth || null, lieuNaissance, body.classeId || body.classe || null, body.parentId || null, studentId).run();
-    return c.json({ message: 'Élève mis à jour' });
+    try {
+        const studentId = c.req.param('studentId');
+        const body = await c.req.json();
+        const lieuNaissance = body.lieu_naissance || body.lieuOfBirth || 'Dakar';
+        const parentId = (body.parentId && body.parentId !== '-' && body.parentId !== '') ? body.parentId : null;
+        const rawClasse = body.classeId || body.classe;
+        const classeId = (rawClasse && rawClasse !== '-' && rawClasse !== '') ? rawClasse : null;
+
+        await getDB(c).prepare(
+            'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = COALESCE(?, dateOfBirth), lieu_naissance = ?, classeId = COALESCE(?, classeId), parentId = ? WHERE id = ?'
+        ).bind(body.nom, body.prenom, body.dateOfBirth || null, lieuNaissance, classeId, parentId, studentId).run();
+        return c.json({ message: 'Élève mis à jour' });
+    } catch (err: any) {
+        console.error('Error updating student:', err);
+        return c.json({ error: err.message || 'Erreur lors de la mise à jour de l\'élève' }, 500);
+    }
 });
 
 // DELETE /api/schools/:schoolId/students/:studentId
 schools.delete('/:schoolId/students/:studentId', async (c) => {
-    const studentId = c.req.param('studentId');
-    await getDB(c).prepare('DELETE FROM Student WHERE id = ?').bind(studentId).run();
-    return c.json({ message: 'Élève supprimé' });
+    try {
+        const studentId = c.req.param('studentId');
+        await getDB(c).prepare('DELETE FROM Student WHERE id = ?').bind(studentId).run();
+        return c.json({ message: 'Élève supprimé' });
+    } catch (err: any) {
+        console.error('Error deleting student:', err);
+        return c.json({ error: err.message || 'Erreur lors de la suppression de l\'élève' }, 500);
+    }
 });
 
 // --- Classes ---
