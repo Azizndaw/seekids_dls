@@ -236,6 +236,8 @@ export const useUpdatePassword = () => {
       }
 
       const requestBody = {
+        userId: authUser?.id || (authUser as any)?.userId,
+        telephone: authUser?.telephone,
         oldPassword: credentialData.oldPassword,
         newPassword: credentialData.newPassword,
         schoolId: authUser.schoolId,
@@ -251,23 +253,25 @@ export const useUpdatePassword = () => {
           },
         });
         return response.data;
-      } catch (error) {
+      } catch (error: any) {
         const message =
-          error.response?.data?.message || "Erreur lors de la création de l'utilisateur";
+          error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Erreur lors du changement de mot de passe";
         throw new Error(message);
       }
     },
     onSuccess: () => {
       toast({
         title: "Succès",
-        description: "Votre mot de passe a été changé.",
+        description: "Votre mot de passe a été changé avec succès.",
       });
     },
-    onError: (error) => {
-      console.error("Erreur lors de la création de l'élève:", error);
+    onError: (error: any) => {
+      console.error("Erreur lors du changement de mot de passe:", error);
       toast({
         title: "Erreur",
-        description: `Erreur lors du changement de votre mot de passe.`,
+        description: error.message || "Erreur lors du changement de votre mot de passe.",
         variant: "destructive",
       });
     },
