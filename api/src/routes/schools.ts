@@ -311,8 +311,12 @@ schools.post('/:schoolId/attendance', async (c) => {
 
     // Failsafe: if context is lost, assign the first admin as the notification sender
     if (!senderId) {
-        const fallback: any = await db.prepare("SELECT id FROM AppUser WHERE role = 'ADMIN' LIMIT 1").first();
-        senderId = fallback?.id;
+        try {
+            const fallback: any = await db.prepare(
+                "SELECT u.id FROM AppUser u INNER JOIN UserRole ur ON u.id = ur.userId INNER JOIN Role r ON ur.roleId = r.id WHERE r.name = 'ADMIN' LIMIT 1"
+            ).first();
+            senderId = fallback?.id;
+        } catch (e) { }
     }
 
     // If absolutely no sender can be assigned, gracefully skip notifications rather than crashing 500
@@ -324,31 +328,45 @@ schools.post('/:schoolId/attendance', async (c) => {
             'INSERT INTO StudentAttendance (id, studentId, disciplineId, type, date, reason) VALUES (?, ?, ?, ?, ?, ?)'
         ).bind(id, record.studentId, record.disciplineId, record.type, record.date, record.reason || null).run();
 
-        // --- NOTIFICATION BROADCAST LOGIC ---
-        const studentInfo: any = await db.prepare(
-            `SELECT s.parentId, s.nom, s.prenom, c.nom as className, c.niveau as classNiveau FROM Student s LEFT JOIN Classe c ON s.classeId = c.id WHERE s.id = ?`
-        ).bind(record.studentId).first();
+        // --- NOTIFICATION BROADCAST LOGIC (safe block) ---
+        try {
+            const studentInfo: any = await db.prepare(
+                `SELECT s.parentId, s.nom, s.prenom, c.nom as className, c.niveau as classNiveau FROM Student s LEFT JOIN Classe c ON s.classeId = c.id WHERE s.id = ?`
+            ).bind(record.studentId).first();
 
-        if (studentInfo && canNotify) {
-            const dateStr = record.date ? new Date(record.date).toLocaleDateString('fr-FR') : 'Aujourd\'hui';
-            const actionStr = record.type === 'ABSCENCE' || record.type === 'ABSENCE' ? 'marqué(e) absent(e)' : 'marqué(e) en retard';
-            const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr} le ${dateStr}.`;
-            const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau} ${studentInfo.className}) a été ${actionStr} le ${dateStr}.`;
+            if (studentInfo && canNotify) {
+                const dateStr = record.date ? new Date(record.date).toLocaleDateString('fr-FR') : 'Aujourd\'hui';
+                const actionStr = record.type === 'ABSCENCE' || record.type === 'ABSENCE' ? 'marqué(e) absent(e)' : 'marqué(e) en retard';
+                const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr} le ${dateStr}.`;
+                const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau || ''} ${studentInfo.className || ''}) a été ${actionStr} le ${dateStr}.`;
 
-            // Notify Parent
-            if (studentInfo.parentId) {
-                await db.prepare(
-                    `INSERT INTO Notification (id, senderId, receiverId, receiverType, type, urgent, content, schoolId, opened, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime("now"))`
-                ).bind(crypto.randomUUID(), senderId, studentInfo.parentId, 'PARENT', 'ATTENDANCE', record.type.includes('ABSCENCE') ? 1 : 0, content, schoolId).run();
+                // Notify Parent
+                if (studentInfo.parentId) {
+                    try {
+                        await db.prepare(
+                            `INSERT INTO Notification (id, senderId, receiverId, receiverType, type, urgent, content, schoolId, opened, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime("now"))`
+                        ).bind(crypto.randomUUID(), senderId, studentInfo.parentId, 'PARENT', 'ATTENDANCE', record.type.includes('ABSCENCE') ? 1 : 0, content, schoolId).run();
+                    } catch (pErr) {
+                        console.error('Error inserting parent notification:', pErr);
+                    }
+                }
+
+                // Notify Admins
+                try {
+                    const admins = await db.prepare(
+                        `SELECT u.id FROM AppUser u INNER JOIN UserRole ur ON u.id = ur.userId INNER JOIN Role r ON ur.roleId = r.id WHERE r.name = 'ADMIN' AND u.schoolId = ?`
+                    ).bind(schoolId).all();
+                    for (const admin of (admins?.results || [])) {
+                        await db.prepare(
+                            `INSERT INTO Notification (id, senderId, receiverId, receiverType, type, urgent, content, schoolId, opened, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime("now"))`
+                        ).bind(crypto.randomUUID(), senderId, (admin as any).id, 'ADMIN', 'ATTENDANCE', record.type.includes('ABSCENCE') ? 1 : 0, adminContent, schoolId).run();
+                    }
+                } catch (aErr) {
+                    console.error('Error inserting admin notifications:', aErr);
+                }
             }
-
-            // Notify Admins
-            const admins = await db.prepare(`SELECT id FROM AppUser WHERE role = 'ADMIN' AND schoolId = ?`).bind(schoolId).all();
-            for (const admin of admins.results) {
-                await db.prepare(
-                    `INSERT INTO Notification (id, senderId, receiverId, receiverType, type, urgent, content, schoolId, opened, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime("now"))`
-                ).bind(crypto.randomUUID(), senderId, (admin as any).id, 'ADMIN', 'ATTENDANCE', record.type.includes('ABSCENCE') ? 1 : 0, adminContent, schoolId).run();
-            }
+        } catch (broadcastErr) {
+            console.error('Error in notification broadcast:', broadcastErr);
         }
     }
     return c.json({ message: 'Présences enregistrées et notifications envoyées' }, 201);

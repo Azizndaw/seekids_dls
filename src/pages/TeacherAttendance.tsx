@@ -75,7 +75,6 @@ const TeacherAttendance = () => {
     },
   ]);
   const [lateReason, setLateReason] = useState<{ [key: number]: string }>({});
-  const [courseContent, setCourseContent] = useState<string>("");
 
   /* === AJOUT: états du pop-up === */
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -212,21 +211,8 @@ const TeacherAttendance = () => {
     let absentStudents = students.filter((s) => s.status === "absent");
     let lateStudents = students.filter((s) => s.status === "late");
     const currentClass = classes.find((c) => c.classeId === selectedClass);
-    console.log("vlll", classes);
-    console.log("vlllId", selectedClass);
-    console.log("currentClass", currentClass);
-    const currentSubject = subjects?.find((s) => s.id === selectedSubject);
+    const currentSubject = subjects?.find((s) => s.id === selectedSubject) || (subjects && subjects[0]);
     setDisabledButton(true);
-
-    if (!courseContent.trim()) {
-      toast({
-        title: "Contenu du cours obligatoire",
-        description: "Veuillez remplir le contenu du cours (cahier de texte) avant de valider l'émargement.",
-        variant: "destructive",
-      });
-      setDisabledButton(false);
-      return;
-    }
 
     const notificationCount = absentStudents.length + lateStudents.length;
 
@@ -239,19 +225,21 @@ const TeacherAttendance = () => {
     });
     setConfirmOpen(true);
 
-    if (notificationCount == 0) {
-      const msg = generateAttendanceNotification({
-        className: `${currentClass?.classe.niveau} ${currentClass?.classe.nom}`,
-        subject: currentSubject?.name!,
-        date: attendanceDate,
-        type: "PRESENCE",
-      });
-      socket.emit("send_notification", { text: msg });
+    if (notificationCount === 0) {
+      if (socket) {
+        const msg = generateAttendanceNotification({
+          className: `${currentClass?.classe?.niveau || ""} ${currentClass?.classe?.nom || ""}`,
+          subject: currentSubject?.name || "",
+          date: attendanceDate,
+          type: "PRESENCE",
+        });
+        socket.emit("send_notification", { text: msg });
+      }
 
       toast({
         title: "Présences validées",
-        description: `Aucune notification nécessaire - Tous les élèves de ${currentClass?.classe.niveau
-          } ${currentClass?.classe.nom} sont présents en ${currentSubject?.name} le ${format(
+        description: `Tous les élèves de ${currentClass?.classe?.niveau || ""} ${currentClass?.classe?.nom || ""
+          } sont présents en ${currentSubject?.name || ""} le ${format(
             attendanceDate,
             "dd/MM/yyyy",
             {
@@ -263,103 +251,98 @@ const TeacherAttendance = () => {
       return;
     }
 
-    // Envoyer notifications pour les absents
-    absentStudents.forEach(async (student) => {
-      const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
-        nom: student.nom || "Inconnu",
-        prenom: student.prenom || "Inconnu",
-        abscence: (student.abscence ?? 0) + 1,
-        moyenne: student.moyenne || 0,
-        dateOfBirth: student.dateOfBirth || new Date().toISOString(),
-        retards: student.retards || 0,
-        id: student.id,
-      });
-      const msg = generateAttendanceNotification({
-        className: `${currentClass?.classe.niveau} ${currentClass?.classe.nom}`,
-        studentName: student.nom + " " + student.prenom,
-        subject: currentSubject?.name!,
-        date: attendanceDate,
-        type: "ABSCENCE",
-        urgent: true,
-      });
-      socket.emit("send_notification", { text: msg });
+    try {
+      // Envoyer notifications et enregistrements pour les absents
+      await Promise.all(
+        absentStudents.map(async (student) => {
+          await updateStudentMutation.mutateAsync({
+            nom: student.nom || "Inconnu",
+            prenom: student.prenom || "Inconnu",
+            abscence: (student.abscence ?? 0) + 1,
+            moyenne: student.moyenne || 0,
+            dateOfBirth: student.dateOfBirth || new Date().toISOString(),
+            retards: student.retards || 0,
+            id: student.id,
+          });
 
-      const createAttendance = await createAttendanceMutation.mutateAsync({
-        type: "ABSCENCE",
-        studentId: student.id,
-        date: attendanceDate,
-        disciplineId: selectedSubject,
-      });
-
-      if (!isUpdateSuccessful || !createAttendance) {
-        toast({
-          title: "Erreur",
-          description: `Erreur lors de la mise à jour de l'élève : ${student.prenom} ${student.nom}`,
-          variant: "destructive",
-        });
-      }
-
-      console.log(
-        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour absence en ${currentSubject?.name
-        } le ${format(attendanceDate, "dd/MM/yyyy", { locale: fr })}`
-      );
-    });
-
-    // Envoyer notifications pour les retards
-    lateStudents.forEach(async (student) => {
-      const reason = lateReason[student.id] || "Aucun motif spécifié";
-      const isUpdateSuccessful = await updateStudentMutation.mutateAsync({
-        nom: student.nom || "Inconnu",
-        prenom: student.prenom || "Inconnu",
-        abscence: student.abscence ?? 0,
-        moyenne: student.moyenne || 0,
-        dateOfBirth: student.dateOfBirth || new Date().toISOString(),
-        retards: (student.retards ?? 0) + 1,
-        id: student.id,
-      });
-      const msg = generateAttendanceNotification({
-        className: `${currentClass?.classe.niveau} ${currentClass?.classe.nom}`,
-        studentName: student.nom + " " + student.prenom,
-        subject: currentSubject?.name!,
-        date: attendanceDate,
-        type: "RETARD",
-        reason: lateReason[student.id],
-      });
-      socket.emit("send_notification", { text: msg });
-
-      const createAttendance = await createAttendanceMutation.mutateAsync({
-        type: "RETARD",
-        studentId: student.id,
-        date: attendanceDate,
-        disciplineId: selectedSubject,
-      });
-      if (!isUpdateSuccessful || !createAttendance) {
-        toast({
-          title: "Erreur",
-          description: `Erreur lors de la mise à jour de l'élève : ${student.prenom} ${student.nom}`,
-          variant: "destructive",
-        });
-      }
-      console.log(
-        `Notification envoyée aux parents de ${student.prenom} ${student.nom} pour retard en ${currentSubject?.name
-        } le ${format(attendanceDate, "dd/MM/yyyy", { locale: fr })} - Motif: ${reason}`
-      );
-    });
-    toast({
-      title: "Présences validées",
-      description: `${notificationCount} notification(s) envoyée(s) aux parents pour ${currentSubject?.name
-        } - ${currentClass?.classe.niveau} ${currentClass?.classe.nom} du ${format(
-          attendanceDate,
-          "dd/MM/yyyy",
-          {
-            locale: fr,
+          if (socket) {
+            const msg = generateAttendanceNotification({
+              className: `${currentClass?.classe?.niveau || ""} ${currentClass?.classe?.nom || ""}`,
+              studentName: `${student.nom} ${student.prenom}`,
+              subject: currentSubject?.name || "",
+              date: attendanceDate,
+              type: "ABSCENCE",
+              urgent: true,
+            });
+            socket.emit("send_notification", { text: msg });
           }
-        )}`,
-    });
-    lateStudents = [];
-    absentStudents = [];
-    setLateReason({});
-    setDisabledButton(false);
+
+          await createAttendanceMutation.mutateAsync({
+            type: "ABSCENCE",
+            studentId: student.id,
+            date: attendanceDate,
+            disciplineId: currentSubject?.id || selectedSubject || "",
+          });
+        })
+      );
+
+      // Envoyer notifications et enregistrements pour les retards
+      await Promise.all(
+        lateStudents.map(async (student) => {
+          const reason = lateReason[student.id] || "Aucun motif spécifié";
+          await updateStudentMutation.mutateAsync({
+            nom: student.nom || "Inconnu",
+            prenom: student.prenom || "Inconnu",
+            abscence: student.abscence ?? 0,
+            moyenne: student.moyenne || 0,
+            dateOfBirth: student.dateOfBirth || new Date().toISOString(),
+            retards: (student.retards ?? 0) + 1,
+            id: student.id,
+          });
+
+          if (socket) {
+            const msg = generateAttendanceNotification({
+              className: `${currentClass?.classe?.niveau || ""} ${currentClass?.classe?.nom || ""}`,
+              studentName: `${student.nom} ${student.prenom}`,
+              subject: currentSubject?.name || "",
+              date: attendanceDate,
+              type: "RETARD",
+              reason: lateReason[student.id],
+            });
+            socket.emit("send_notification", { text: msg });
+          }
+
+          await createAttendanceMutation.mutateAsync({
+            type: "RETARD",
+            studentId: student.id,
+            date: attendanceDate,
+            disciplineId: currentSubject?.id || selectedSubject || "",
+          });
+        })
+      );
+
+      toast({
+        title: "Présences validées",
+        description: `${notificationCount} notification(s) envoyée(s) aux parents pour ${currentSubject?.name || ""
+          } - ${currentClass?.classe?.niveau || ""} ${currentClass?.classe?.nom || ""} du ${format(
+            attendanceDate,
+            "dd/MM/yyyy",
+            {
+              locale: fr,
+            }
+          )}`,
+      });
+      setLateReason({});
+    } catch (err) {
+      console.error("Erreur lors de la validation des présences:", err);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de l'enregistrement de l'appel.",
+        variant: "destructive",
+      });
+    } finally {
+      setDisabledButton(false);
+    }
     return;
   };
 
