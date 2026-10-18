@@ -61,12 +61,12 @@ const EditParentModal: React.FC<EditParentModalProps> = ({ parent, students }) =
       const accessToken = localStorage.getItem("accessToken");
 
       const response = await httpClient.put(
-        `/api/schools/${authUser.schoolId}/admin-actions/parents/${parent.id}`,
+        `/api/schools/${authUser.schoolId}/parents/${parent.id}`,
         {
           nom: formData.nom,
           prenom: formData.prenom,
           email: formData.email,
-          telephone: formData.telephone || "null",
+          telephone: formData.telephone || null,
         },
         {
           headers: {

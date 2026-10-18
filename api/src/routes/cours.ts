@@ -95,6 +95,15 @@ cours.post('/', async (c) => {
         `INSERT INTO Cours (id, jour, heure, disciplineId, classeId, professeurId, schoolId)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, body.jour, body.heure, body.disciplineId, body.classeId, body.professeurId, schoolId).run();
+
+    // Auto-sync ClasseProfesseur & _TeacherDisciplines
+    if (body.classeId && body.professeurId) {
+        await getDB(c).prepare('INSERT OR IGNORE INTO ClasseProfesseur (classeId, professeurId) VALUES (?, ?)').bind(body.classeId, body.professeurId).run();
+    }
+    if (body.disciplineId && body.professeurId) {
+        await getDB(c).prepare('INSERT OR IGNORE INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(body.professeurId, body.disciplineId).run();
+    }
+
     return c.json({ id, ...body }, 201);
 });
 
@@ -105,6 +114,15 @@ cours.put('/:coursId', async (c) => {
     await getDB(c).prepare(
         'UPDATE Cours SET jour = ?, heure = ?, disciplineId = ?, classeId = ?, professeurId = ? WHERE id = ?'
     ).bind(body.jour, body.heure, body.disciplineId, body.classeId, body.professeurId, coursId).run();
+
+    // Auto-sync ClasseProfesseur & _TeacherDisciplines
+    if (body.classeId && body.professeurId) {
+        await getDB(c).prepare('INSERT OR IGNORE INTO ClasseProfesseur (classeId, professeurId) VALUES (?, ?)').bind(body.classeId, body.professeurId).run();
+    }
+    if (body.disciplineId && body.professeurId) {
+        await getDB(c).prepare('INSERT OR IGNORE INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(body.professeurId, body.disciplineId).run();
+    }
+
     return c.json({ message: 'Cours mis à jour' });
 });
 

@@ -46,6 +46,58 @@ import { useSchoolData } from "@/hooks/useSchoolData";
 import { useAllTeachers, useClasses } from "@/hooks/useUsers";
 import { useAuth } from "@/hooks/useAuth";
 
+/* =================== Heures de non-cours (créneaux libres) =================== */
+// Bornes de la journée scolaire utilisées pour calculer les créneaux libres d'une classe
+const SCHOOL_DAY_START = "08:00";
+const SCHOOL_DAY_END = "17:00";
+// Les trous plus courts que cette durée (récréations, interclasses) sont ignorés
+const MIN_FREE_MINUTES = 30;
+const FREE_SLOT_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+type FreeSlot = { start: string; end: string; minutes: number };
+
+// Accepte "08:00", "08h00", " 8:00 " ...
+const toMinutes = (raw: string): number => {
+  const match = (raw || "").trim().match(/^(\d{1,2})\s*[:hH]\s*(\d{2})?/);
+  if (!match) return NaN;
+  return parseInt(match[1], 10) * 60 + parseInt(match[2] || "0", 10);
+};
+
+const fromMinutes = (m: number): string =>
+  `${Math.floor(m / 60).toString().padStart(2, "0")}:${(m % 60).toString().padStart(2, "0")}`;
+
+const formatDuration = (m: number): string => {
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (h === 0) return `${min} min`;
+  return min === 0 ? `${h}h` : `${h}h${min.toString().padStart(2, "0")}`;
+};
+
+const computeFreeSlots = (courses: any[]): FreeSlot[] => {
+  const dayStart = toMinutes(SCHOOL_DAY_START);
+  const dayEnd = toMinutes(SCHOOL_DAY_END);
+  const intervals = courses
+    .map((c) => [toMinutes(c.startTime), toMinutes(c.endTime)] as [number, number])
+    .filter(([s, e]) => !isNaN(s) && !isNaN(e) && e > s)
+    .sort((a, b) => a[0] - b[0]);
+
+  const slots: FreeSlot[] = [];
+  let cursor = dayStart;
+  const pushSlot = (from: number, to: number) => {
+    const start = Math.max(from, dayStart);
+    const end = Math.min(to, dayEnd);
+    if (end - start >= MIN_FREE_MINUTES) {
+      slots.push({ start: fromMinutes(start), end: fromMinutes(end), minutes: end - start });
+    }
+  };
+  for (const [s, e] of intervals) {
+    if (s > cursor) pushSlot(cursor, s);
+    cursor = Math.max(cursor, e);
+  }
+  if (dayEnd > cursor) pushSlot(cursor, dayEnd);
+  return slots;
+};
+
 const GeneralSchedule = () => {
   const navigate = useNavigate();
   const [selectedTeacherId, setSelectedTeacherId] = useState("all");
@@ -116,6 +168,27 @@ const GeneralSchedule = () => {
     });
     return filtered;
   }, [planning, selectedClassId, selectedTeacherId]);
+
+  // Créneaux libres de la classe sélectionnée (indépendant du filtre professeur)
+  const freeSlotsByDay = useMemo(() => {
+    const result: Record<string, FreeSlot[]> = {};
+    if (!planning || selectedClassId === "all") return result;
+
+    const scheduleData = transformCoursesToAdminSchedule(planning);
+    FREE_SLOT_DAYS.forEach((day) => {
+      const dayCourses = (Array.isArray(scheduleData[day]) ? scheduleData[day] : []).filter(
+        (course: any) => course.classeId?.includes(selectedClassId)
+      );
+      result[day] = computeFreeSlots(dayCourses);
+    });
+    return result;
+  }, [planning, selectedClassId]);
+
+  const showFreeSlots = selectedClassId !== "all";
+  const totalFreeMinutes = Object.values(freeSlotsByDay).reduce(
+    (sum, slots) => sum + slots.reduce((s, slot) => s + slot.minutes, 0),
+    0
+  );
 
   if (isLoading || !(authUser && school && planning && classes && teachers)) {
     return (
@@ -472,8 +545,8 @@ const GeneralSchedule = () => {
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <div className="overflow-x-auto">
-              <div className="min-w-[900px]">
-                <div className="grid grid-cols-6 gap-2 mb-4">
+              <div className={showFreeSlots ? "min-w-[1100px]" : "min-w-[900px]"}>
+                <div className={`grid ${showFreeSlots ? "grid-cols-7" : "grid-cols-6"} gap-2 mb-4`}>
                   {weekDays.map((day) => (
                     <div
                       key={day}
@@ -481,9 +554,15 @@ const GeneralSchedule = () => {
                       {day}
                     </div>
                   ))}
+                  {showFreeSlots && (
+                    <div className="font-semibold text-center p-2 rounded flex items-center justify-center gap-1 bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
+                      <Clock className="w-4 h-4" />
+                      Heures libres
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-6 gap-2">
+                <div className={`grid ${showFreeSlots ? "grid-cols-7" : "grid-cols-6"} gap-2`}>
                   {weekDays.map((day) => (
                     <div key={day} className="border rounded p-2 min-h-[400px] bg-card">
                       <div className="space-y-2">
@@ -544,6 +623,48 @@ const GeneralSchedule = () => {
                       </div>
                     </div>
                   ))}
+
+                  {showFreeSlots && (
+                    <div className="border border-emerald-200 dark:border-emerald-800 rounded p-2 min-h-[400px] bg-emerald-50/60 dark:bg-emerald-950/20">
+                      <div className="text-[11px] text-muted-foreground mb-2 text-center">
+                        Créneaux sans cours ({SCHOOL_DAY_START} – {SCHOOL_DAY_END})
+                      </div>
+                      <div className="space-y-3">
+                        {FREE_SLOT_DAYS.map((day) => {
+                          const slots = freeSlotsByDay[day] || [];
+                          return (
+                            <div key={day}>
+                              <div className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 mb-1">
+                                {day}
+                              </div>
+                              {slots.length > 0 ? (
+                                <div className="space-y-1">
+                                  {slots.map((slot) => (
+                                    <div
+                                      key={`${day}-${slot.start}`}
+                                      className="flex items-center justify-between gap-1 px-2 py-1 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-800">
+                                      <span className="font-medium">
+                                        {slot.start} – {slot.end}
+                                      </span>
+                                      <span className="opacity-70">{formatDuration(slot.minutes)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">
+                                  Aucun créneau libre
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-4 pt-2 border-t border-emerald-200 dark:border-emerald-800 text-xs text-center">
+                        Total semaine :{" "}
+                        <span className="font-semibold">{formatDuration(totalFreeMinutes)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

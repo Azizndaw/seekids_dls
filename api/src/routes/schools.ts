@@ -265,15 +265,20 @@ schools.get('/:schoolId/parents', async (c) => {
     return c.json(results);
 });
 
-// PUT /api/schools/:schoolId/parents/:parentId
-schools.put('/:schoolId/parents/:parentId', async (c) => {
+const handleUpdateParent = async (c: any) => {
     const parentId = c.req.param('parentId');
     const body = await c.req.json();
     await getDB(c).prepare(
-        'UPDATE AppUser SET nom = ?, prenom = ?, email = ?, telephone = ?, profession = ?, adresse = ? WHERE id = ?'
-    ).bind(body.nom, body.prenom, body.email, body.telephone || null, body.profession || null, body.adresse || null, parentId).run();
+        'UPDATE AppUser SET nom = ?, prenom = ?, email = ?, telephone = ?, profession = COALESCE(?, profession), adresse = COALESCE(?, adresse) WHERE id = ?'
+    ).bind(body.nom, body.prenom, body.email, body.telephone || null, body.profession ?? null, body.adresse ?? null, parentId).run();
     return c.json({ message: 'Parent mis à jour' });
-});
+};
+
+// PUT /api/schools/:schoolId/parents/:parentId
+schools.put('/:schoolId/parents/:parentId', handleUpdateParent);
+
+// Fallback / legacy route: PUT /api/schools/:schoolId/admin-actions/parents/:parentId
+schools.put('/:schoolId/admin-actions/parents/:parentId', handleUpdateParent);
 
 // --- Disciplines ---
 // GET /api/schools/:schoolId/disciplines

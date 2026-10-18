@@ -1,8 +1,72 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./useAuth"; // Assuming you have a useAuth hook
 import { useToast } from "@/components/ui/use-toast"; // Assuming a toast library
 import httpClient from "@/api/htppClient";
 import { apiUrl } from "@/integrations/supabase/host";
+
+/**
+ * Invalide tous les caches du planning et notifie les autres onglets ouverts
+ */
+export const invalidateAllPlanningQueries = (queryClient: any) => {
+  queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-professor"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-teacher-id"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-class"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-day"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-day-hour"] });
+  queryClient.invalidateQueries({ queryKey: ["courses-by-week"] });
+  queryClient.invalidateQueries({ queryKey: ["course"] });
+  queryClient.invalidateQueries({ queryKey: ["currentTeacher"] });
+  queryClient.invalidateQueries({ queryKey: ["classes"] });
+  queryClient.invalidateQueries({ queryKey: ["teachers"] });
+  queryClient.invalidateQueries({ queryKey: ["users"] });
+  queryClient.invalidateQueries({ queryKey: ["parent"] });
+  queryClient.invalidateQueries({ queryKey: ["parents"] });
+
+  if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+    try {
+      const channel = new BroadcastChannel("seekids_planning_sync");
+      channel.postMessage({ type: "PLANNING_UPDATED", timestamp: Date.now() });
+      channel.close();
+    } catch (e) {
+      console.warn("BroadcastChannel error:", e);
+    }
+  }
+};
+
+/**
+ * Hook d'écoute temps réel pour synchroniser les plannings entre tous les onglets ouverts
+ */
+export const usePlanningSync = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
+    const channel = new BroadcastChannel("seekids_planning_sync");
+    channel.onmessage = (event) => {
+      if (event.data?.type === "PLANNING_UPDATED") {
+        queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-professor"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-teacher-id"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-class"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-day"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-day-hour"] });
+        queryClient.invalidateQueries({ queryKey: ["courses-by-week"] });
+        queryClient.invalidateQueries({ queryKey: ["course"] });
+        queryClient.invalidateQueries({ queryKey: ["currentTeacher"] });
+        queryClient.invalidateQueries({ queryKey: ["classes"] });
+        queryClient.invalidateQueries({ queryKey: ["teachers"] });
+        queryClient.invalidateQueries({ queryKey: ["users"] });
+        queryClient.invalidateQueries({ queryKey: ["parent"] });
+        queryClient.invalidateQueries({ queryKey: ["parents"] });
+      }
+    };
+    return () => {
+      channel.close();
+    };
+  }, [queryClient]);
+};
 
 // --- Type Definitions for nested objects ---
 type Discipline = {
@@ -101,6 +165,9 @@ export const useGetAllCours = () => {
       return data;
     },
     enabled: !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -122,6 +189,9 @@ export const useGetCoursById = (coursId: string) => {
       return data;
     },
     enabled: !!coursId && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -144,6 +214,9 @@ export const useGetCoursByProfesseur = () => {
       return data;
     },
     enabled: !!authUser && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -166,6 +239,9 @@ export const useGetCoursesByTeacherId = (professeurId: string) => {
       return data;
     },
     enabled: !!professeurId && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -187,6 +263,9 @@ export const useGetCoursByClasse = (classeId: string) => {
       return data;
     },
     enabled: !!classeId && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -208,6 +287,9 @@ export const useGetCoursByDay = (day: string) => {
       return data;
     },
     enabled: !!day && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -231,6 +313,9 @@ export const useGetCoursByDayAndHour = (day: string, hour: string) => {
       return data;
     },
     enabled: !!day && !!hour && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -254,6 +339,9 @@ export const useGetCoursByWeek = (weekStart: string, weekEnd: string) => {
       return data;
     },
     enabled: !!weekStart && !!weekEnd && !!schoolId,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 };
 
@@ -287,7 +375,7 @@ export const useCreateCours = () => {
         description: "Cours créé avec succès.",
       });
       // Invalidate queries that fetch lists of courses to refetch fresh data
-      queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+      invalidateAllPlanningQueries(queryClient);
     },
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.reason || "Erreur lors de la création du cours.";
@@ -328,8 +416,7 @@ export const useUpdateCours = () => {
         description: "Cours mis à jour avec succès.",
       });
       // Invalidate the specific course and all relevant lists
-      queryClient.invalidateQueries({ queryKey: ["course", updatedCours.id] });
-      queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+      invalidateAllPlanningQueries(queryClient);
     },
     onError: (error: any) => {
       const errorMessage =
@@ -368,7 +455,7 @@ export const useDeleteCours = () => {
         description: "Cours supprimé avec succès.",
       });
       // Invalidate all course lists to reflect the deletion
-      queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+      invalidateAllPlanningQueries(queryClient);
     },
     onError: (error: any) => {
       const errorMessage =
@@ -409,10 +496,8 @@ export const useAssignProfesseurToCours = () => {
         title: "Succès",
         description: "Professeur assigné avec succès.",
       });
-      //   Invalidate the specific course and relevant lists
-      queryClient.invalidateQueries({ queryKey: ["course", updatedCours.id] });
-      queryClient.invalidateQueries({ queryKey: ["all-courses"] });
-      queryClient.invalidateQueries({ queryKey: ["courses-by-professor"] });
+      // Invalidate the specific course and relevant lists
+      invalidateAllPlanningQueries(queryClient);
     },
     onError: (error: any) => {
       const errorMessage =
@@ -454,8 +539,7 @@ export const useAssignMatiereToCours = () => {
         description: "Matière assignée avec succès.",
       });
       // Invalidate the specific course and relevant lists
-      queryClient.invalidateQueries({ queryKey: ["course", updatedCours.id] });
-      queryClient.invalidateQueries({ queryKey: ["all-courses"] });
+      invalidateAllPlanningQueries(queryClient);
     },
     onError: (error: any) => {
       const errorMessage =

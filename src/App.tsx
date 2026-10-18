@@ -24,6 +24,7 @@ import SchoolReports from "./pages/SchoolReports";
 import GeneralSchedule from "./pages/GeneralSchedule";
 import { SocketProvider } from "./socket/SocketContext";
 import SocketManager from "./socket/SocketManager";
+import PlanningSyncListener from "./components/PlanningSyncListener";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -33,6 +34,7 @@ const App = () => (
   <SocketProvider>
     <SocketManager />
     <QueryClientProvider client={queryClient}>
+      <PlanningSyncListener />
       <LanguageProvider>
         <TooltipProvider>
           <Toaster />

@@ -186,5 +186,8 @@ export const useGetCurrentParent = () => {
       return response.data;
     },
     enabled: !!authUser?.schoolId,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 };

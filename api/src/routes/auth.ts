@@ -211,13 +211,17 @@ auth.post('/refresh', async (c) => {
 
 // GET /api/auth/me/role/:role
 auth.get('/me/role/:role', async (c) => {
-    const user = c.get('user') as JWTPayload;
+    const user = c.get('user' as never) as JWTPayload;
     if (!user) return c.json({ error: 'Non authentifié' }, 401);
 
     let fullUser = await getDB(c).prepare(
-        `SELECT u.*, GROUP_CONCAT(d.name) as disciplineNames, GROUP_CONCAT(d.id) as disciplineIds
+        `SELECT u.*, GROUP_CONCAT(DISTINCT d.name) as disciplineNames, GROUP_CONCAT(DISTINCT d.id) as disciplineIds
      FROM AppUser u
-     LEFT JOIN "_TeacherDisciplines" td ON u.id = td.A
+     LEFT JOIN (
+         SELECT A, B FROM "_TeacherDisciplines"
+         UNION
+         SELECT professeurId as A, disciplineId as B FROM Cours WHERE professeurId IS NOT NULL
+     ) td ON u.id = td.A
      LEFT JOIN Discipline d ON td.B = d.id
      WHERE u.id = ?
      GROUP BY u.id`
@@ -228,9 +232,13 @@ auth.get('/me/role/:role', async (c) => {
         const phone = user.telephone || '';
         const phoneNo221 = phone.replace(/^221/, '');
         fullUser = await getDB(c).prepare(
-            `SELECT u.*, GROUP_CONCAT(d.name) as disciplineNames, GROUP_CONCAT(d.id) as disciplineIds
+            `SELECT u.*, GROUP_CONCAT(DISTINCT d.name) as disciplineNames, GROUP_CONCAT(DISTINCT d.id) as disciplineIds
          FROM AppUser u
-         LEFT JOIN "_TeacherDisciplines" td ON u.id = td.A
+         LEFT JOIN (
+             SELECT A, B FROM "_TeacherDisciplines"
+             UNION
+             SELECT professeurId as A, disciplineId as B FROM Cours WHERE professeurId IS NOT NULL
+         ) td ON u.id = td.A
          LEFT JOIN Discipline d ON td.B = d.id
          WHERE (
             (u.telephone IS NOT NULL AND u.telephone != '' AND (u.telephone = ? OR u.telephone = ?))
@@ -260,9 +268,15 @@ auth.get('/me/role/:role', async (c) => {
     } else if (userRole === "TEACHER") {
         const { results } = await getDB(c)
             .prepare(
-                "SELECT cp.classeId, c.nom, c.niveau FROM ClasseProfesseur cp JOIN Classe c ON cp.classeId = c.id WHERE cp.professeurId = ?"
+                `SELECT DISTINCT c.id as classeId, c.nom, c.niveau
+                 FROM Classe c
+                 WHERE c.id IN (
+                     SELECT cp.classeId FROM ClasseProfesseur cp WHERE cp.professeurId = ?
+                     UNION
+                     SELECT co.classeId FROM Cours co WHERE co.professeurId = ?
+                 )`
             )
-            .bind(user.userId)
+            .bind(user.userId, user.userId)
             .all();
         classes = [];
         for (const r of results) {

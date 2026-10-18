@@ -131,6 +131,9 @@ export const useClasses = () => {
       }
     },
     enabled: !!authUser?.schoolId,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 };
 
@@ -588,7 +591,10 @@ export const useGetCurrentTeacher = (authUser) => {
         throw new Error(message);
       }
     },
-    enabled: isEnabled, //  only run when both IDs are ready
+    enabled: isEnabled, // only run when both IDs are ready
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 };
 
