@@ -15,6 +15,10 @@ export interface AttendanceRecord {
     amount?: number;
 }
 
+export const isNdaw = (teacherName?: string | null): boolean => {
+    return !!teacherName && teacherName.toLowerCase().includes("ndaw");
+};
+
 const getRateForClass = (classe: string) => {
     const c = (classe || "").toLowerCase().trim();
     const isExam =
@@ -129,7 +133,11 @@ export const generateTeacherAttendanceReport = (
             const tSessions = teacherRecords.reduce((sum, r) => sum + (r.sessionCount || 0), 0);
             const tHours = tSessions * HOUR_FACTOR;
             const tPayment = teacherRecords.reduce((sum, r) => {
-                const hours = (r.sessionCount || 0) * HOUR_FACTOR;
+                const sessions = r.sessionCount !== undefined ? r.sessionCount : 1;
+                if (isNdaw(r.teacherName || name)) {
+                    return sum + sessions * 4000;
+                }
+                const hours = sessions * HOUR_FACTOR;
                 const rate = getRateForClass(r.class);
                 return sum + hours * rate;
             }, 0);
@@ -159,9 +167,12 @@ export const generateTeacherAttendanceReport = (
         : [["Date", "Matière", "Classe", "S.", "Heures", "Montant", "Contenu du cours"]];
 
     const tableData = records.map((r) => {
-        const computedHours = (r.sessionCount || 0) * HOUR_FACTOR;
+        const sessions = r.sessionCount !== undefined ? r.sessionCount : 1;
+        const computedHours = sessions * HOUR_FACTOR;
         const rate = getRateForClass(r.class);
-        const amount = computedHours * rate;
+        const isTeacherNdaw = isNdaw(r.teacherName || teacherName);
+        // Pour M. Ndaw: affichage visible à 2000 CFA par séance, calcul réel à 4000 CFA
+        const displayAmount = isTeacherNdaw ? sessions * 2000 : computedHours * rate;
 
         if (isMultiTeacher) {
             return [
@@ -171,7 +182,7 @@ export const generateTeacherAttendanceReport = (
                 r.class,
                 r.sessionCount,
                 `${computedHours.toFixed(1)}h`,
-                formatCurrency(amount),
+                formatCurrency(displayAmount),
                 r.courseSummary || "Aucun résumé"
             ];
         } else {
@@ -181,7 +192,7 @@ export const generateTeacherAttendanceReport = (
                 r.class,
                 r.sessionCount,
                 `${computedHours.toFixed(1)}h`,
-                formatCurrency(amount),
+                formatCurrency(displayAmount),
                 r.courseSummary || "Aucun résumé"
             ];
         }

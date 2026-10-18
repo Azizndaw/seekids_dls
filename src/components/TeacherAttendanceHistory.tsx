@@ -239,6 +239,13 @@ const TeacherAttendanceHistory = ({ subjects, classes }: TeacherAttendanceSheetP
     return end - start;
   };
 
+  const HOUR_FACTOR = 40 / 60;
+
+  const isTeacherNdaw = () => {
+    const name = authUser ? `${authUser.prenom} ${authUser.nom}` : "";
+    return name.toLowerCase().includes("ndaw");
+  };
+
   const getRateForClass = (classe: string) => {
     const c = (classe || "").toLowerCase().trim();
     const isExam =
@@ -247,10 +254,15 @@ const TeacherAttendanceHistory = ({ subjects, classes }: TeacherAttendanceSheetP
   };
 
   const calculateStats = (records: AttendanceRecord[]) => {
-    const totalHours = records.reduce((sum, r) => sum + calculateHours(r.startTime, r.endTime), 0);
-    const totalSessions = records.length;
+    const isNdaw = isTeacherNdaw();
+    const totalHours = records.reduce((sum, r) => sum + (r.sessionCount || 1) * HOUR_FACTOR, 0);
+    const totalSessions = records.reduce((sum, r) => sum + (r.sessionCount || 1), 0);
     const totalPayment = records.reduce((sum, r) => {
-      const hours = calculateHours(r.startTime, r.endTime);
+      const sessions = r.sessionCount !== undefined ? r.sessionCount : 1;
+      if (isNdaw || (r.teacherName && r.teacherName.toLowerCase().includes("ndaw"))) {
+        return sum + sessions * 4000;
+      }
+      const hours = sessions * HOUR_FACTOR;
       const rate = getRateForClass(r.class);
       return sum + hours * rate;
     }, 0);

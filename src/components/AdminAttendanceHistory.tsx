@@ -117,6 +117,10 @@ const AdminAttendanceHistory = () => {
   const SESSION_MINUTES = 40;
   const HOUR_FACTOR = SESSION_MINUTES / 60; // 40/60
 
+  const isNdaw = (teacherName?: string | null): boolean => {
+    return !!teacherName && teacherName.toLowerCase().includes("ndaw");
+  };
+
   // Tarif horaire selon classe (examen ou non)
   const getRateForClass = (classe: string) => {
     const c = (classe || "").toLowerCase().trim();
@@ -137,9 +141,14 @@ const AdminAttendanceHistory = () => {
     // totalHours = somme des (séances * 40/60)
     const totalHours = records.reduce((sum, r) => sum + hoursFromSessions(r.sessionCount || 1), 0);
     const totalSessions = records.reduce((sum, r) => sum + (r.sessionCount || 1), 0);
-    // Montant = heures (par règle) × tarif horaire (3000 / 4000)
+    // Montant = pour M. Ndaw: calcul à 4000 CFA par séance
+    // pour les autres: heures (par règle) × tarif horaire (3000 / 4000)
     const totalPayment = records.reduce((sum, r) => {
-      const hours = hoursFromSessions(r.sessionCount || 1);
+      const sessions = r.sessionCount !== undefined ? r.sessionCount : 1;
+      if (isNdaw(r.teacherName)) {
+        return sum + sessions * 4000;
+      }
+      const hours = hoursFromSessions(sessions);
       const rate = getRateForClass(r.class);
       return sum + hours * rate;
     }, 0);
@@ -347,10 +356,10 @@ const AdminAttendanceHistory = () => {
                       </div>
                       <div className="text-center p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                         <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-600 dark:text-orange-400">
-                          3000 – 4000 CFA
+                          {selectedTeacher && isNdaw(selectedTeacher) ? "2 000 CFA" : "3000 – 4000 CFA"}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Tarif horaire (selon classe)
+                          {selectedTeacher && isNdaw(selectedTeacher) ? "Tarif séance" : "Tarif horaire (selon classe)"}
                         </div>
                       </div>
                       <div className="text-center p-3 sm:p-4 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-md col-span-2 lg:col-span-1">
@@ -377,9 +386,12 @@ const AdminAttendanceHistory = () => {
               <ScrollArea className="h-full pr-4">
                 <div className="space-y-3">
                   {filteredRecords.map((record) => {
-                    const computedHours = hoursFromSessions(record.sessionCount || 1);
+                    const sessions = record.sessionCount !== undefined ? record.sessionCount : 1;
+                    const computedHours = hoursFromSessions(sessions);
                     const rate = getRateForClass(record.class);
-                    const amount = computedHours * rate;
+                    const isTeacherNdaw = isNdaw(record.teacherName);
+                    // Pour M. Ndaw: affichage visible à 2000 CFA par séance, calcul réel à 4000 CFA
+                    const displayAmount = isTeacherNdaw ? sessions * 2000 : computedHours * rate;
                     const isAbsent = record.sessionCount === 0;
                     const isLate = record.courseSummary?.toLowerCase().includes("retard");
 
@@ -429,7 +441,7 @@ const AdminAttendanceHistory = () => {
                               <span className="font-medium">{record.sessionCount}</span> séance(s)
                             </div>
                             <div className="text-xs sm:text-sm font-semibold text-green-600 dark:text-green-400">
-                              {amount.toLocaleString("fr-FR")} CFA
+                              {displayAmount.toLocaleString("fr-FR")} CFA
                             </div>
                           </div>
 
