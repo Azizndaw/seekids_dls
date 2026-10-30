@@ -12,7 +12,7 @@ emargements.get('/', async (c) => {
      LEFT JOIN Discipline d ON e.disciplineId = d.id
      LEFT JOIN Classe c ON e.classeId = c.id
      LEFT JOIN AppUser u ON e.professeurId = u.id
-     WHERE e.schoolId = ? ORDER BY e.debut DESC LIMIT 200`
+    WHERE e.schoolId = ? ORDER BY e.debut DESC`
     ).bind(schoolId).all();
     return c.json(results);
 });

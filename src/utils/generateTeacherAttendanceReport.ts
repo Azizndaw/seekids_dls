@@ -24,6 +24,8 @@ const getRateForClass = (classe: string) => {
     const isExam =
         c.includes("terminal l2") ||
         c.includes("terminal s2") ||
+        c.includes("tl2") ||
+        c.includes("ts2") ||
         c.startsWith("3") ||
         c.includes("3e") ||
         c.includes("3ème");

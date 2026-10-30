@@ -48,7 +48,7 @@ const AdminAttendanceHistory = () => {
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const { data: dbEmargements } = useEmargements();
+  const { data: dbEmargements, refetch: refetchEmargements } = useEmargements();
   const { data: dbteachers } = useAllTeachers(authUser);
   const { useGetSchool } = useSchoolData();
   const { data: schoolData } = useGetSchool();
@@ -127,6 +127,8 @@ const AdminAttendanceHistory = () => {
     const isExam =
       c.includes("terminal l2") ||
       c.includes("terminal s2") ||
+      c.includes("tl2") ||
+      c.includes("ts2") ||
       c.startsWith("3") ||
       c.includes("3e") ||
       c.includes("3ème");
@@ -226,7 +228,13 @@ const AdminAttendanceHistory = () => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (open) void refetchEmargements();
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"
