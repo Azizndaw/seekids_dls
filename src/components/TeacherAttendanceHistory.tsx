@@ -68,6 +68,7 @@ interface AttendanceRecord {
   submittedAt: string;
   subjectId?: string;
   classId?: string;
+  classIds?: string[];
 }
 interface TeacherAttendanceSheetProps {
   subjects: { id: string; name: string }[]; // Define the type based on what you get from `useSubjects`
@@ -139,9 +140,12 @@ const TeacherAttendanceHistory = ({ subjects, classes }: TeacherAttendanceSheetP
         notes: em.additionalInfo,
         submittedAt: em.createdAt.split("T")[0],
         teacherName: [(em.professeur?.prenom || em.professeurPrenom || ""), (em.professeur?.nom || em.professeurNom || "")].filter(Boolean).join(" "),
-        class: [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" "),
+        class: Array.isArray(em.classes) && em.classes.length > 0
+          ? em.classes.map((classe: any) => [classe.niveau, classe.nom].filter(Boolean).join(" ")).join(" + ")
+          : [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" "),
         subject: em.discipline?.name || em.disciplineName || "Matière inconnue",
         classId: em.classe?.id || em.classeId,
+        classIds: Array.isArray(em.classes) ? em.classes.map((classe: any) => classe.id) : [em.classe?.id || em.classeId],
         subjectId: em.discipline?.id || em.disciplineId,
       }));
       setAttendanceRecords(formatted);
@@ -226,7 +230,7 @@ const TeacherAttendanceHistory = ({ subjects, classes }: TeacherAttendanceSheetP
       !searchTerm ||
       record.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.class.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesClass = selectedClass === "all" || record.class === selectedClass;
+    const matchesClass = selectedClass === "all" || record.class === selectedClass || record.classIds?.includes(selectedClass);
 
     return matchesMonth && matchesSearch && matchesClass;
   });

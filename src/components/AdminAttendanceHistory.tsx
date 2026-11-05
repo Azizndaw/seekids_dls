@@ -87,7 +87,9 @@ const AdminAttendanceHistory = () => {
       notes: em.additionalInfo,
       submittedAt: createdAtIso.split("T")[0],
       teacherName: [(em.professeur?.prenom || em.professeurPrenom || ""), (em.professeur?.nom || em.professeurNom || "")].filter(Boolean).join(" ") || "Inconnu",
-      class: [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" ") || "Classe Inconnue",
+      class: Array.isArray(em.classes) && em.classes.length > 0
+        ? em.classes.map((classe: any) => [classe.niveau, classe.nom].filter(Boolean).join(" ")).join(" + ")
+        : [(em.classe?.niveau || em.classeNiveau || ""), (em.classe?.nom || em.classeName || "")].filter(Boolean).join(" ") || "Classe Inconnue",
       subject: em.discipline?.name || em.disciplineName || "Matière",
     };
   });

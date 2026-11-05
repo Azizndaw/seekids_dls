@@ -146,6 +146,20 @@ const autoMotifs = (s: { moyAn: number; absences: number; retards: number }): Mo
 const normalize = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+// Converts an attendance date (ISO string, Date, or epoch seconds/ms) into a "YYYY-MM-DD" key.
+const toDayKey = (value: unknown): string => {
+    if (value == null || value === "") return "";
+    if (typeof value === "string") return value.split(/[T ]/)[0];
+    let date: Date | null = null;
+    if (value instanceof Date) date = value;
+    else if (typeof value === "number") date = new Date(value < 1e12 ? value * 1000 : value);
+    if (!date || isNaN(date.getTime())) return String(value);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+};
+
 const computeAvg = (grades: any[], period: "semestre1" | "semestre2"): number => {
     const stats = calculatePeriodStats(grades, period);
     return stats.totalCoef > 0 ? stats.average : 0;
@@ -221,7 +235,7 @@ const ExclusionReportGenerator: React.FC = () => {
                     const absSet = new Set<string>();
                     const retSet = new Set<string>();
                     (found.attendance || []).forEach((r: any) => {
-                        const d = (r.date || "").split("T")[0];
+                        const d = toDayKey(r.date);
                         if (r.type === "ABSCENCE") absSet.add(d);
                         if (r.type === "RETARD") retSet.add(d);
                     });
@@ -251,7 +265,7 @@ const ExclusionReportGenerator: React.FC = () => {
             const absSet = new Set<string>();
             const retSet = new Set<string>();
             (s.attendance || []).forEach((r: any) => {
-                const d = (r.date || "").split("T")[0];
+                const d = toDayKey(r.date);
                 if (r.type === "ABSCENCE") absSet.add(d);
                 if (r.type === "RETARD") retSet.add(d);
             });

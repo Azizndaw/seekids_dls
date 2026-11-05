@@ -61,8 +61,15 @@ interface ParsedSlot {
   calculatedSessions: number;
   disciplineId: string;
   disciplineName: string;
+  classIds: string[];
+  classDisplay: string;
   isTaken: boolean;
 }
+
+const SHARED_GRADE_SIX_CLASSES = [
+  "9013291a-656b-4c14-829f-24dd2b7449b5",
+  "6eb00000-656b-4c14-829f-24dd2b7449b5",
+];
 
 const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceSheetProps) => {
   const { toast } = useToast();
@@ -197,12 +204,18 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
       );
     });
 
-    const emargementsForDay = existingEmargements.filter(
-      (e) => e.debut.startsWith(formData.date) && e.classeId === formData.class
-    );
+    const emargementsForDay = existingEmargements.filter((e) => {
+      const emargementClasses = Array.isArray(e.classes)
+        ? e.classes.map((classe: any) => classe.id)
+        : [e.classeId];
+      return e.debut.startsWith(formData.date) && emargementClasses.includes(formData.class);
+    });
 
     return dayCourses.map((c) => {
       const parsed = parseSlot(c);
+      const classIds = [c.classeId];
+
+
       const isTaken = emargementsForDay.some((e) => {
         const eStart = e.debut.split("T")[1]?.substring(0, 5) || "";
         return eStart >= parsed.startRaw && eStart < parsed.endRaw;
@@ -210,6 +223,13 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
 
       return {
         ...parsed,
+        classIds,
+        classDisplay: classIds
+          .map((id) => {
+            const classe = classes.find((item) => item.id === id);
+            return classe ? `${classe.niveau} ${classe.nom || ""}`.trim() : id;
+          })
+          .join(" + "),
         isTaken,
       };
     });
@@ -286,6 +306,7 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
     setIsOpen(false);
     await createAttendanceMutation.mutateAsync({
       classeId: formData.class,
+      classeIds: activeSlot?.classIds || [formData.class],
       disciplineId: formData.subject,
       debut: `${formData.date}T${formData.startTime}`,
       fin: `${formData.date}T${formData.endTime}`,
@@ -427,6 +448,12 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
                     {selectedDisciplineName || "Non spécifiée"}
                   </span>
                 </div>
+
+                {activeSlot && activeSlot.classIds.length > 1 && (
+                  <p className="text-xs font-medium text-green-800 dark:text-green-200">
+                    Créneau commun : {activeSlot.classDisplay}. Un seul émargement sera créé.
+                  </p>
+                )}
 
                 {/* Si plusieurs créneaux le même jour pour cette classe */}
                 {scheduledSlots.length > 1 && (

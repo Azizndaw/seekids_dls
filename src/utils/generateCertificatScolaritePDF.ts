@@ -152,7 +152,7 @@ export const generateCertificatScolaritePDF = async (
     }
 
     const segments: TextSegment[] = [
-        { text: "Je soussigné Mʳ ", bold: false },
+        { text: "Je soussigné M. ", bold: false },
         { text: directeur, bold: true },
         { text: ", Directeur des Etudes du Collège Lycée Privé ", bold: false },
         { text: "DAKAR LEADERS SCHOOL", bold: true },
