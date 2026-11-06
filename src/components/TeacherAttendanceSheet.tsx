@@ -196,29 +196,55 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
         .trim();
     const targetDay = norm(dayName);
 
-    const dayCourses = courses.filter((c) => {
+    const allDayCourses = courses.filter((c) => {
       const cDay = norm(c.jour);
-      return (
-        c.classeId === formData.class &&
-        (cDay === targetDay || cDay.includes(targetDay) || targetDay.includes(cDay))
-      );
+      return cDay === targetDay || cDay.includes(targetDay) || targetDay.includes(cDay);
     });
 
-    const emargementsForDay = existingEmargements.filter((e) => {
-      const emargementClasses = Array.isArray(e.classes)
-        ? e.classes.map((classe: any) => classe.id)
-        : [e.classeId];
-      return e.debut.startsWith(formData.date) && emargementClasses.includes(formData.class);
-    });
+    const dayCourses = allDayCourses.filter((c) => c.classeId === formData.class);
+
+    const NDAW_ID = "d8a08b24-1da8-4583-847b-547588c3c1ed";
+    const isNdaw = authUser?.id === NDAW_ID;
 
     return dayCourses.map((c) => {
       const parsed = parseSlot(c);
-      const classIds = [c.classeId];
 
+      // Détecter toutes les classes réunies sur ce même créneau horaire (même jour, même heure, même matière)
+      const sharedClassIds = !isNdaw
+        ? Array.from(
+            new Set(
+              allDayCourses
+                .filter((other) => {
+                  const otherParsed = parseSlot(other);
+                  return (
+                    otherParsed.startRaw === parsed.startRaw &&
+                    otherParsed.endRaw === parsed.endRaw &&
+                    other.disciplineId === c.disciplineId
+                  );
+                })
+                .map((other) => other.classeId)
+            )
+          )
+        : [c.classeId];
 
-      const isTaken = emargementsForDay.some((e) => {
+      const classIds = sharedClassIds.length > 0 ? sharedClassIds : [c.classeId];
+
+      // Un créneau est considéré comme déjà émargé si le professeur a déjà émargé sur ce créneau horaire ce jour-là
+      const isTaken = existingEmargements.some((e) => {
+        if (!e.debut.startsWith(formData.date)) return false;
+        const emargementClasses = Array.isArray(e.classes)
+          ? e.classes.map((classe: any) => classe.id)
+          : [e.classeId];
         const eStart = e.debut.split("T")[1]?.substring(0, 5) || "";
-        return eStart >= parsed.startRaw && eStart < parsed.endRaw;
+        const eEnd = e.fin?.split("T")[1]?.substring(0, 5) || "";
+        const timeOverlaps = eEnd
+          ? eStart < parsed.endRaw && eEnd > parsed.startRaw
+          : eStart >= parsed.startRaw && eStart < parsed.endRaw;
+        if (!timeOverlaps) return false;
+        if (isNdaw) {
+          return emargementClasses.includes(formData.class);
+        }
+        return true;
       });
 
       return {
@@ -233,7 +259,7 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
         isTaken,
       };
     });
-  }, [formData.date, formData.class, courses, existingEmargements]);
+  }, [formData.date, formData.class, courses, existingEmargements, authUser?.id, classes]);
 
   // 3. Mise à jour automatique et fixation des heures, matière et séances
   useEffect(() => {
