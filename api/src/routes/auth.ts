@@ -25,7 +25,14 @@ auth.post('/login', async (c) => {
         phone221 = digitsOnly.substring(2);
     }
 
-    let userQuery = 'SELECT u.*, GROUP_CONCAT(r.name) as roles FROM AppUser u LEFT JOIN UserRole ur ON u.id = ur.userId LEFT JOIN Role r ON ur.roleId = r.id WHERE (u.email = ? OR u.telephone = ? OR u.telephone = ? OR (u.telephone IS NOT NULL AND u.telephone LIKE ?)) AND u.schoolId = ? GROUP BY u.id';
+    let userQuery = `SELECT u.*, GROUP_CONCAT(r.name) as roles,
+        (SELECT COUNT(*) FROM Student s WHERE s.parentId = u.id) as studentCount
+        FROM AppUser u
+        LEFT JOIN UserRole ur ON u.id = ur.userId
+        LEFT JOIN Role r ON ur.roleId = r.id
+        WHERE (u.email = ? OR u.telephone = ? OR u.telephone = ? OR (u.telephone IS NOT NULL AND u.telephone LIKE ?))
+        AND u.schoolId = ?
+        GROUP BY u.id`;
 
     let safeRole = '';
     if (role) {
@@ -33,21 +40,39 @@ auth.post('/login', async (c) => {
         userQuery += ` HAVING roles LIKE '%${safeRole}%'`;
     }
 
+    // Prioritize accounts that actually have associated students, then most recently created
+    userQuery += ' ORDER BY studentCount DESC, u.createdAt DESC';
+
     const searchPattern = (digitsOnly && digitsOnly.length >= 7) ? `%${digitsOnly.slice(-9)}%` : '__NO_MATCH__';
-    const user = await getDB(c).prepare(userQuery).bind(
+    const { results: candidateUsers } = await getDB(c).prepare(userQuery).bind(
         sanitizedEmail,
         phone221,
         digitsOnly,
         searchPattern,
         school.id
-    ).first();
+    ).all();
 
-    if (!user) return c.json({ error: 'Identifiants incorrects' }, 401);
+    if (!candidateUsers || candidateUsers.length === 0) {
+        return c.json({ error: 'Identifiants incorrects' }, 401);
+    }
+
+    // Try finding a candidate whose password directly matches, otherwise default to the top candidate (with children)
+    let user: any = null;
+    let valid = false;
+
+    for (const cand of candidateUsers) {
+        if (await verifyPassword(password, cand.password as string)) {
+            user = cand;
+            valid = true;
+            break;
+        }
+    }
+
+    if (!user) {
+        user = candidateUsers[0];
+    }
 
     const roles = (user.roles as string || '').split(',').filter(Boolean);
-
-    // Verify password
-    let valid = await verifyPassword(password, user.password as string);
 
     // Fallbacks apply ONLY when logging in under PARENT or TEACHER profiles respectively
     if (!valid && role === 'PARENT' && roles.includes('PARENT')) {
@@ -92,31 +117,68 @@ auth.post('/login', async (c) => {
 // POST /api/auth/register
 auth.post('/register', async (c) => {
     const body = await c.req.json();
-    const { nom, prenom, email, password, roles, schoolId, telephone, disciplineIds } = body;
+    const { nom, prenom, email, password, roles, schoolId, telephone, disciplineIds, students } = body;
 
     if (!password || !nom || !prenom) {
         return c.json({ error: 'Champs requis manquants' }, 400);
     }
 
-    // Check if user exists (if email is provided)
-    if (email && email.trim() !== '') {
-        const existing = await getDB(c).prepare('SELECT id FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
-        if (existing) return c.json({ error: 'Un utilisateur avec cet email existe déjà' }, 409);
-    }
-
-    const id = crypto.randomUUID();
+    const db = getDB(c);
     const hashedPassword = await hashPassword(password);
 
-    await getDB(c).prepare(
-        'INSERT INTO AppUser (id, nom, prenom, email, password, telephone, schoolId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
-    ).bind(id, nom, prenom, email || null, hashedPassword, telephone || null, schoolId).run();
+    // Check if user with same phone already exists when registering a PARENT
+    let existingUser: any = null;
+    if (telephone && telephone.trim() !== '') {
+        const digitsOnly = telephone.replace(/[^0-9]/g, '');
+        let phone221 = digitsOnly;
+        if (digitsOnly.length === 9) {
+            phone221 = '221' + digitsOnly;
+        } else if (digitsOnly.startsWith('00221')) {
+            phone221 = digitsOnly.substring(2);
+        }
+        const searchPattern = digitsOnly.length >= 7 ? `%${digitsOnly.slice(-9)}%` : '__NO_MATCH__';
+        existingUser = await db.prepare(
+            `SELECT u.id FROM AppUser u
+             WHERE (u.telephone = ? OR u.telephone = ? OR (u.telephone IS NOT NULL AND u.telephone LIKE ?))
+             AND u.schoolId = ?
+             ORDER BY (SELECT COUNT(*) FROM Student s WHERE s.parentId = u.id) DESC, u.createdAt DESC`
+        ).bind(phone221, digitsOnly, searchPattern, schoolId).first();
+    }
+
+    // Check if user exists by email (if email is provided and not reusing existing phone account)
+    if (!existingUser && email && email.trim() !== '') {
+        const existingByEmail = await db.prepare('SELECT id FROM AppUser WHERE email = ? AND schoolId = ?').bind(email, schoolId).first();
+        if (existingByEmail) {
+            if (roles && Array.isArray(roles) && roles.includes('PARENT')) {
+                existingUser = existingByEmail;
+            } else {
+                return c.json({ error: 'Un utilisateur avec cet email existe déjà' }, 409);
+            }
+        }
+    }
+
+    let id: string;
+    if (existingUser) {
+        id = existingUser.id as string;
+        await db.prepare(
+            'UPDATE AppUser SET nom = ?, prenom = ?, email = COALESCE(?, email), password = ?, telephone = COALESCE(?, telephone) WHERE id = ?'
+        ).bind(nom, prenom, email || null, hashedPassword, telephone || null, id).run();
+    } else {
+        id = crypto.randomUUID();
+        await db.prepare(
+            'INSERT INTO AppUser (id, nom, prenom, email, password, telephone, schoolId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
+        ).bind(id, nom, prenom, email || null, hashedPassword, telephone || null, schoolId).run();
+    }
 
     // Assign roles
     if (roles && Array.isArray(roles)) {
         for (const roleName of roles) {
-            const role = await getDB(c).prepare('SELECT id FROM Role WHERE name = ?').bind(roleName).first();
+            const role = await db.prepare('SELECT id FROM Role WHERE name = ?').bind(roleName).first();
             if (role) {
-                await getDB(c).prepare('INSERT INTO UserRole (userId, roleId) VALUES (?, ?)').bind(id, role.id).run();
+                const hasRole = await db.prepare('SELECT 1 FROM UserRole WHERE userId = ? AND roleId = ?').bind(id, role.id).first();
+                if (!hasRole) {
+                    await db.prepare('INSERT INTO UserRole (userId, roleId) VALUES (?, ?)').bind(id, role.id).run();
+                }
             }
         }
     }
@@ -124,7 +186,42 @@ auth.post('/register', async (c) => {
     // Assign disciplines
     if (disciplineIds && Array.isArray(disciplineIds)) {
         for (const discId of disciplineIds) {
-            await getDB(c).prepare('INSERT INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(id, discId).run();
+            const hasDisc = await db.prepare('SELECT 1 FROM "_TeacherDisciplines" WHERE A = ? AND B = ?').bind(id, discId).first();
+            if (!hasDisc) {
+                await db.prepare('INSERT INTO "_TeacherDisciplines" (A, B) VALUES (?, ?)').bind(id, discId).run();
+            }
+        }
+    }
+
+    // Link or create students if provided when registering a parent
+    if (students && Array.isArray(students)) {
+        for (const child of students) {
+            const targetClasseId = child.classeId || child.classe || null;
+            let existingStudent: any = null;
+
+            if (child.id) {
+                existingStudent = await db.prepare('SELECT id FROM Student WHERE id = ? AND schoolId = ?').bind(child.id, schoolId).first();
+            }
+            if (!existingStudent && child.nom && child.prenom) {
+                existingStudent = await db.prepare(
+                    `SELECT id FROM Student
+                     WHERE LOWER(TRIM(nom)) = LOWER(TRIM(?))
+                       AND LOWER(TRIM(prenom)) = LOWER(TRIM(?))
+                       AND schoolId = ?
+                     ORDER BY CASE WHEN classeId = ? THEN 0 ELSE 1 END`
+                ).bind(child.nom, child.prenom, schoolId, targetClasseId || '').first();
+            }
+
+            if (existingStudent) {
+                await db.prepare(
+                    'UPDATE Student SET parentId = ?, classeId = COALESCE(?, classeId) WHERE id = ?'
+                ).bind(id, targetClasseId, existingStudent.id).run();
+            } else if (child.nom && child.prenom && targetClasseId) {
+                const studentId = crypto.randomUUID();
+                await db.prepare(
+                    'INSERT INTO Student (id, nom, prenom, dateNaissance, classeId, schoolId, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))'
+                ).bind(studentId, child.nom.trim(), child.prenom.trim(), child.dateNaissance || null, targetClasseId, schoolId, id).run();
+            }
         }
     }
 
@@ -244,7 +341,8 @@ auth.get('/me/role/:role', async (c) => {
             (u.telephone IS NOT NULL AND u.telephone != '' AND (u.telephone = ? OR u.telephone = ?))
             OR (u.email IS NOT NULL AND u.email != '' AND u.email = ?)
          ) AND u.schoolId = ?
-         GROUP BY u.id`
+         GROUP BY u.id
+         ORDER BY (SELECT COUNT(*) FROM Student s WHERE s.parentId = u.id) DESC`
         ).bind(phone, phoneNo221, user.email || '__NO_EMAIL__', user.schoolId).first();
     }
 
@@ -254,15 +352,30 @@ auth.get('/me/role/:role', async (c) => {
     let classes: any[] = [];
     const userRole = c.req.param("role");
     if (userRole === "PARENT") {
+        const rawPhone = ((fullUser.telephone as string) || user.telephone || '').replace(/[^0-9]/g, '');
+        const phonePattern = rawPhone.length >= 7 ? `%${rawPhone.slice(-9)}%` : '__NO_PHONE__';
+        const emailVal = (fullUser.email as string) || user.email || '__NO_EMAIL__';
+        const schoolIdVal = (fullUser.schoolId as string) || user.schoolId || '';
+
         const { results } = await getDB(c)
             .prepare(
                 `SELECT s.*, c.nom as className, c.niveau as classNiveau,
                  (SELECT COUNT(*) FROM StudentAttendance sa WHERE sa.studentId = s.id AND sa.type IN ('ABSCENCE', 'ABSENCE', 'absent')) as abscence,
                  (SELECT COUNT(*) FROM StudentAttendance sa WHERE sa.studentId = s.id AND sa.type IN ('RETARD', 'late')) as retards,
                  (SELECT ROUND(SUM(n.note * n.coefficient) / NULLIF(SUM(n.coefficient), 0), 2) FROM Note n WHERE n.studentId = s.id) as moyenne
-                 FROM Student s LEFT JOIN Classe c ON s.classeId = c.id WHERE s.parentId = ?`
+                 FROM Student s LEFT JOIN Classe c ON s.classeId = c.id
+                 WHERE s.parentId = ?
+                    OR s.parentId = ?
+                    OR s.parentId IN (
+                        SELECT u2.id FROM AppUser u2
+                        WHERE u2.schoolId = ?
+                          AND (
+                              (? != '__NO_PHONE__' AND u2.telephone IS NOT NULL AND u2.telephone LIKE ?)
+                              OR (? != '__NO_EMAIL__' AND u2.email IS NOT NULL AND u2.email != '' AND u2.email = ?)
+                          )
+                    )`
             )
-            .bind(user.userId)
+            .bind(user.userId, fullUser.id, schoolIdVal, phonePattern, phonePattern, emailVal, emailVal)
             .all();
         children = results;
     } else if (userRole === "TEACHER") {
@@ -316,6 +429,7 @@ auth.get('/me/role/:role', async (c) => {
 // DELETE /api/auth/users/:id
 auth.delete('/users/:id', async (c) => {
     const id = c.req.param('id');
+    await getDB(c).prepare('UPDATE Student SET parentId = NULL WHERE parentId = ?').bind(id).run();
     await getDB(c).prepare('DELETE FROM UserRole WHERE userId = ?').bind(id).run();
     await getDB(c).prepare('DELETE FROM "_TeacherDisciplines" WHERE A = ?').bind(id).run();
     await getDB(c).prepare('DELETE FROM AppUser WHERE id = ?').bind(id).run();

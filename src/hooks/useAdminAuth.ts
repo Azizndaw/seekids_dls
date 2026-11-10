@@ -40,12 +40,17 @@ export const useAdminAuth = () => {
       console.log("Role =>", `"${userRole}"`);
       console.log("===========================");
 
+      const academicYearHeader =
+        userRole === "ADMIN"
+          ? localStorage.getItem("academicYear") || "2026-2027"
+          : "2026-2027";
+
       const response = await fetch(`https://seekids-api.serigneabdouazizndaw.workers.dev/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-School-Name": clientName,
-          "X-Academic-Year": localStorage.getItem("academicYear") || "2026-2027"
+          "X-Academic-Year": academicYearHeader
         },
         body: JSON.stringify({ email: email.trim(), password: password.trim(), schoolName: clientName, role: userRole })
       });

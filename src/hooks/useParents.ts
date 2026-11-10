@@ -110,6 +110,8 @@ export const useCreateParent = () => {
         description: "Parent créé avec succès",
       });
       queryClient.invalidateQueries({ queryKey: ["parents"] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["classes"] });
     },
 
     onError: (error) => {
@@ -140,7 +142,7 @@ export const useGetCurrentParent = () => {
   const { authUser } = useAuth();
 
   return useQuery({
-    queryKey: ["parent"],
+    queryKey: ["parent", authUser?.id],
     queryFn: async () => {
       console.log("Fetching current parents...");
 
@@ -185,7 +187,7 @@ export const useGetCurrentParent = () => {
 
       return response.data;
     },
-    enabled: !!authUser?.schoolId,
+    enabled: !!authUser?.schoolId && !!authUser?.id,
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
     staleTime: 5000,

@@ -73,9 +73,11 @@ const ParentDashboard = () => {
   const [selectedChild, setSelectedChild] = useState<any>(null);
   const [grades, setGrades] = useState<GradeEntry[]>([]);
 
-  const { data: schedule } = useGetCoursByClasse(selectedChild?.classeId);
-  const { data: nextEvaluation } = useEvaluationsByClasse(selectedChild?.classeId);
-  const { data: selectedChildGrades } = useGetNotesByStudentId(selectedChild?.id);
+  const activeChild = selectedChild || currentParrent?.children?.[0] || null;
+
+  const { data: schedule } = useGetCoursByClasse(activeChild?.classeId);
+  const { data: nextEvaluation } = useEvaluationsByClasse(activeChild?.classeId);
+  const { data: selectedChildGrades } = useGetNotesByStudentId(activeChild?.id);
 
   const socket = useSocket();
   const queryClient = useQueryClient();
@@ -87,7 +89,15 @@ const ParentDashboard = () => {
 
   useEffect(() => {
     if (currentParrent?.children?.length > 0) {
-      setSelectedChild(currentParrent.children[0]);
+      setSelectedChild((prev: any) => {
+        if (prev) {
+          const updated = currentParrent.children.find((c: any) => c.id === prev.id);
+          if (updated) return updated;
+        }
+        return currentParrent.children[0];
+      });
+    } else {
+      setSelectedChild(null);
     }
   }, [currentParrent]);
 
@@ -104,16 +114,16 @@ const ParentDashboard = () => {
     }));
 
     setGrades(cleaned || []);
-  }, [selectedChild, selectedChildGrades]);
+  }, [activeChild, selectedChildGrades]);
 
   // Socket.IO listener for real-time notifications
   useEffect(() => {
-    if (!socket || !selectedChild) return;
+    if (!socket || !activeChild) return;
 
     // Join the class room to receive broadcasts
-    if (selectedChild.classeId) {
-      console.log("Joining room:", selectedChild.classeId);
-      socket.emit("join", selectedChild.classeId);
+    if (activeChild.classeId) {
+      console.log("Joining room:", activeChild.classeId);
+      socket.emit("join", activeChild.classeId);
     }
 
     const handleNotification = (newNotification: any) => {
@@ -122,7 +132,7 @@ const ParentDashboard = () => {
       // Handle homework notifications
       if (
         newNotification.type === "homework" &&
-        newNotification.classeId === selectedChild.classeId
+        newNotification.classeId === activeChild.classeId
       ) {
         toast({
           title: "📚 Nouvel exercice !",
@@ -144,7 +154,7 @@ const ParentDashboard = () => {
       socket.off("notification", handleNotification);
       socket.off("new-homework", handleNotification);
     };
-  }, [socket, selectedChild, toast, queryClient]);
+  }, [socket, activeChild, toast, queryClient]);
 
   if (isLoading || !currentParrent) {
     return (
@@ -156,16 +166,31 @@ const ParentDashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-red-500">
-        Une erreur est survenue lors du chargement des données.
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 text-red-500">
+        <p>Une erreur est survenue lors du chargement des données.</p>
+        <LogoutButton />
       </div>
     );
   }
 
-  if (!selectedChild) {
+  if (!activeChild) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500">
-        Aucun enfant associé à ce compte.
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <img src={schoolLogo} alt="Logo" className="h-8 w-8 object-contain" />
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Espace Parent</h1>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ThemeToggle />
+              <LogoutButton />
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-4 p-4">
+          <p>Aucun enfant associé à ce compte.</p>
+        </div>
       </div>
     );
   }
@@ -213,7 +238,7 @@ const ParentDashboard = () => {
                           variant="outline"
                           size="sm"
                           className="flex items-center gap-2 h-6 px-2 text-xs">
-                          <span>{selectedChild?.prenom}</span>
+                          <span>{activeChild?.prenom}</span>
                           <ChevronDown className="w-3 h-3" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -224,7 +249,7 @@ const ParentDashboard = () => {
                           <DropdownMenuItem
                             key={child.id}
                             onClick={() => setSelectedChild(child)}
-                            className={`flex items-center gap-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${selectedChild?.id === child.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                            className={`flex items-center gap-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${activeChild?.id === child.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
                               }`}>
                             <User className="w-4 h-4" />
                             <div>
@@ -239,7 +264,7 @@ const ParentDashboard = () => {
                     </DropdownMenu>
                   ) : (
                     <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {selectedChild?.prenom}
+                      {activeChild?.prenom}
                     </span>
                   )}
                 </div>
@@ -345,7 +370,7 @@ const ParentDashboard = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-7">
-        {selectedChild && <ChildInfo childInfo={selectedChild} />}
+        {activeChild && <ChildInfo childInfo={activeChild} />}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 gap-0.5 sm:gap-1 p-0">
@@ -399,8 +424,8 @@ const ParentDashboard = () => {
           <TabsContent value="grades" className="space-y-6">
             <GradesTab
               grades={grades}
-              classeId={selectedChild?.classeId}
-              studentId={selectedChild?.id}
+              classeId={activeChild?.classeId}
+              studentId={activeChild?.id}
             />
           </TabsContent>
 
@@ -411,7 +436,7 @@ const ParentDashboard = () => {
           <TabsContent value="chat" className="space-y-6">
             <ChatTab
               children={currentParrent.children}
-              selectedChild={selectedChild}
+              selectedChild={activeChild}
               onSelectChild={setSelectedChild}
             />
           </TabsContent>

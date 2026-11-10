@@ -75,8 +75,8 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
           prenom: formData.prenom,
           dateOfBirth: formData.date_naissance || null,
           lieu_naissance: formData.lieu_naissance || "Dakar",
-          parentId: formData.parent_id || null,
-          classeId: formData.classe_id || null,
+          parentId: formData.parent_id && formData.parent_id !== "-" ? formData.parent_id : null,
+          classeId: formData.classe_id && formData.classe_id !== "-" ? formData.classe_id : null,
           moyenne: student.moyenne,
           abscence: student.abscence,
           retards: student.retards,
@@ -97,6 +97,8 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
       });
 
       queryClient.invalidateQueries({ queryKey: ["classes"] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
       setOpen(false);
     } catch (error) {
       console.error("Erreur lors de la modification:", error);
@@ -133,6 +135,8 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({ student, classes, p
         description: "L'élève a été supprimé avec succès",
       });
       queryClient.invalidateQueries({ queryKey: ["classes"] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
       setOpen(false);
     } catch (error) {
       console.error("Erreur lors de la suppression:", error);

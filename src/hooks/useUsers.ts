@@ -51,7 +51,7 @@ export interface TeacherClassAssignment {
 
 export const useUsers = () => {
   const { authUser } = useAuth();
-  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
+  const academicYear = localStorage.getItem("academicYear") || "2026-2027";
 
   return useQuery({
     queryKey: ["users", academicYear],
@@ -80,7 +80,7 @@ export const useUsers = () => {
 
 export const useStudents = () => {
   const { authUser } = useAuth();
-  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
+  const academicYear = localStorage.getItem("academicYear") || "2026-2027";
 
   return useQuery({
     queryKey: ["students", academicYear],
@@ -108,7 +108,7 @@ export const useStudents = () => {
 
 export const useClasses = () => {
   const { authUser } = useAuth();
-  const academicYear = localStorage.getItem("academicYear") || "2025-2026";
+  const academicYear = localStorage.getItem("academicYear") || "2026-2027";
 
   return useQuery({
     queryKey: ["classes", academicYear],
