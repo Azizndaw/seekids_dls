@@ -241,6 +241,14 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
   };
 
   const saveGradeEdit = async () => {
+    if (isNaN(editFormData.grade) || editFormData.grade < 0 || editFormData.grade > 20) {
+      toast({
+        title: "Erreur",
+        description: "La note doit être comprise entre 0 et 20.",
+        variant: "destructive",
+      });
+      return;
+    }
     toast({
       title: "Note modifiée",
       description: "La note a été mise à jour.",
@@ -668,16 +676,24 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
               </div>
 
               <div>
-                <Label>Note</Label>
+                <Label>Note /20</Label>
                 <Input
                   type="number"
+                  min={0}
+                  max={20}
+                  step="0.25"
                   value={editFormData.grade}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      grade: Number(e.target.value),
-                    })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setEditFormData({ ...editFormData, grade: 0 });
+                      return;
+                    }
+                    const num = Number(val);
+                    if (!isNaN(num) && num >= 0 && num <= 20) {
+                      setEditFormData({ ...editFormData, grade: num });
+                    }
+                  }}
                 />
               </div>
 

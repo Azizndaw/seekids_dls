@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { useGetCurrentTeacher, useClasses } from "@/hooks/useUsers";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
 import {
   convertGrades,
   useCreateNote,
@@ -68,7 +69,9 @@ type HomeworkEntry = {
 
 // Function to get fixed coefficient based on class name and subject/discipline name (from official Senegal matrix)
 const getFixedCoefficient = (classNameStr: string, subjectNameStr: string): number => {
-  if (!classNameStr || !subjectNameStr) return 2;
+  if (!subjectNameStr) return 2;
+  if (subjectNameStr.toLowerCase().includes("musique") || subjectNameStr.toLowerCase().includes("musical") || subjectNameStr.toLowerCase().includes("informatique") || subjectNameStr.toLowerCase().includes("info")) return 1;
+  if (!classNameStr) return 2;
 
   const c = classNameStr.toLowerCase();
   const s = subjectNameStr.toLowerCase();
@@ -85,6 +88,9 @@ const getFixedCoefficient = (classNameStr: string, subjectNameStr: string): numb
   const isEco = s.includes("économie") || s.includes("economie") || s.includes("eco");
   const isEPS = s.includes("eps") || s.includes("sport");
   const isPhilo = s.includes("philo");
+  const isMusique = s.includes("musique") || s.includes("musical");
+  const isInfo = s.includes("informatique") || s.includes("info");
+  if (isMusique || isInfo) return 1;
 
   const is6e = c.includes("6e") || c.includes("6ème") || c.includes("6eme");
   const is5e = c.includes("5e") || c.includes("5ème") || c.includes("5eme");
@@ -369,6 +375,8 @@ const BigSendConfirmation: React.FC = () => {
 const TeacherGrades = () => {
   const navigate = useNavigate();
   const { authUser } = useAuth();
+  const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { socket } = useContext(SocketContext);
   const { data: currentTeacher, isLoading: teacherLoading } = useGetCurrentTeacher(authUser);
   const { data: currentCourses, isLoading: coursesLoading } = useGetCoursByProfesseur();
@@ -435,21 +443,37 @@ const TeacherGrades = () => {
 
   const handleUpdateGrade = async () => {
     if (!selectedGrade) return;
-    await updateNoteMutation.mutateAsync({
-      id: selectedGrade.id,
-      data: {
-        appreciation: selectedGrade.comment,
-        classeId: selectedGrade.extraData.classeId,
-        professeurId: selectedGrade.extraData.professeurId,
-        studentId: selectedGrade.extraData.studentId,
-        note: selectedGrade.grade,
-        date: selectedGrade.data,
-        coefficient: selectedGrade.coefficient,
-        disciplineId: selectedGrade.extraData.disciplineId,
-        type: selectedGrade.title,
-        devoir: selectedGrade.type !== "Composition",
-      },
-    });
+    const gradeNum = parseFloat(selectedGrade.grade);
+    if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 20) {
+      toast({
+        title: "Note invalide",
+        description: "La note doit être comprise entre 0 et 20.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await updateNoteMutation.mutateAsync({
+        id: selectedGrade.id,
+        data: {
+          appreciation: selectedGrade.comment || null,
+          classeId: selectedGrade.extraData?.classeId,
+          professeurId: selectedGrade.extraData?.professeurId,
+          studentId: selectedGrade.extraData?.studentId,
+          note: gradeNum,
+          date: selectedGrade.date,
+          coefficient: Number(selectedGrade.coefficient) || 1,
+          disciplineId: selectedGrade.extraData?.disciplineId,
+          type: selectedGrade.title,
+          devoir: selectedGrade.type !== "Composition",
+          semester: selectedGrade.extraData?.semester || selectedSemester,
+        },
+      });
+      setIsEditDialogOpen(false);
+      setSelectedGrade(null);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de la note:", error);
+    }
   };
 
   const [selectedSemester, setSelectedSemester] = useState<"Semestre 1" | "Semestre 2">("Semestre 1");
@@ -464,6 +488,22 @@ const TeacherGrades = () => {
   }>({});
 
   const handleHomeworkChange = (studentId: number, field: keyof HomeworkEntry, value: string) => {
+    if (field === "grade") {
+      if (value === "") {
+        setHomeworkData((prev) => ({
+          ...prev,
+          [studentId]: {
+            ...prev[studentId],
+            grade: "" as any,
+          },
+        }));
+        return;
+      }
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0 || num > 20) {
+        return;
+      }
+    }
     setHomeworkData((prev) => ({
       ...prev,
       [studentId]: {
@@ -478,6 +518,22 @@ const TeacherGrades = () => {
     field: keyof HomeworkEntry,
     value: string,
   ) => {
+    if (field === "grade") {
+      if (value === "") {
+        setCompositionGrades((prev) => ({
+          ...prev,
+          [studentId]: {
+            ...prev[studentId],
+            grade: "" as any,
+          },
+        }));
+        return;
+      }
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0 || num > 20) {
+        return;
+      }
+    }
     setCompositionGrades((prev) => ({
       ...prev,
       [studentId]: { ...prev[studentId], [field]: value },
@@ -485,46 +541,85 @@ const TeacherGrades = () => {
   };
 
   const handleValidateGrades = async (type: "homework" | "composition") => {
-    const coefficient: number = parseFloat(formData.coef.toString());
+    if (!selectedClass || selectedClass === "all") {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner une classe avant de valider les notes.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!selectedSubject) {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner une matière avant de valider les notes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const coefficient: number = parseFloat(formData.coef.toString()) || 1;
     const date = formData.date;
     const title = formData.title;
     const disciplineId = selectedSubject;
     const classeId = selectedClass;
-    const devoir = type == "homework";
+    const devoir = type === "homework";
+
+    const targetData = type === "homework" ? homeworkData : compositionGrades;
+    const entries = Object.entries(targetData).filter(
+      ([_, data]) =>
+        data &&
+        data.grade !== undefined &&
+        data.grade !== null &&
+        data.grade.toString().trim() !== "" &&
+        !isNaN(Number(data.grade))
+    );
+
+    if (entries.length === 0) {
+      toast({
+        title: "Aucune note saisie",
+        description: "Veuillez saisir au moins une note valide avant de valider.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hasInvalid = entries.some(([_, data]) => {
+      const g = Number(data.grade);
+      return g < 0 || g > 20;
+    });
+
+    if (hasInvalid) {
+      toast({
+        title: "Note invalide",
+        description: "Toutes les notes doivent être comprises entre 0 et 20.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
-      if (type == "homework") {
-        for (const [studentId, data] of Object.entries(homeworkData)) {
-          await createNoteMutation.mutateAsync({
-            coefficient,
-            classeId,
-            date,
-            devoir,
-            disciplineId,
-            note: parseFloat(data.grade.toString()),
-            studentId,
-            type: title,
-            appreciation: data.appreciation ?? null,
-            professeurId: authUser.id,
-            semester: selectedSemester,
-          });
-        }
+      for (const [studentId, data] of entries) {
+        await createNoteMutation.mutateAsync({
+          coefficient,
+          classeId,
+          date,
+          devoir,
+          disciplineId,
+          note: parseFloat(data.grade.toString()),
+          studentId,
+          type: title,
+          appreciation: data.appreciation ?? null,
+          professeurId: authUser.id,
+          semester: selectedSemester,
+        });
+      }
+
+      // Dès lors que les notes sont validées, toutes les notes disparaissent du formulaire (compteur à zéro)
+      if (type === "homework") {
+        setHomeworkData({});
       } else {
-        for (const [studentId, data] of Object.entries(compositionGrades)) {
-          await createNoteMutation.mutateAsync({
-            coefficient,
-            classeId,
-            date,
-            devoir,
-            disciplineId,
-            note: parseFloat(data.grade.toString()),
-            studentId,
-            type: title,
-            appreciation: data.appreciation ?? null,
-            professeurId: authUser.id,
-            semester: selectedSemester,
-          });
-        }
+        setCompositionGrades({});
       }
 
       // Envoyer une notification via Socket.IO seulement si tout s'est bien passé
@@ -544,12 +639,12 @@ const TeacherGrades = () => {
       }
     } catch (error) {
       console.error("Erreur lors de l'envoi des notes:", error);
-      // Optional: Show specific error toast here if needed, usually mutation handles it
     }
   };
 
   const handleEditGrade = (grade) => {
     setSelectedGrade({ ...grade });
+    setIsEditDialogOpen(true);
   };
 
   const getGradeColor = (grade: number) => {
@@ -897,9 +992,12 @@ const TeacherGrades = () => {
                                   <TableCell>
                                     <Input
                                       type="number"
+                                      min="0"
+                                      max="20"
+                                      step="0.25"
                                       placeholder="0"
                                       className="w-20"
-                                      value={homeworkData[student.id]?.grade || ""}
+                                      value={homeworkData[student.id]?.grade !== undefined ? homeworkData[student.id]?.grade : ""}
                                       onChange={(e) =>
                                         handleHomeworkChange(student.id, "grade", e.target.value)
                                       }
@@ -1010,9 +1108,12 @@ const TeacherGrades = () => {
                                   <TableCell>
                                     <Input
                                       type="number"
+                                      min="0"
+                                      max="20"
+                                      step="0.25"
                                       placeholder="0"
                                       className="w-20"
-                                      value={compositionGrades[student.id]?.grade || ""}
+                                      value={compositionGrades[student.id]?.grade !== undefined ? compositionGrades[student.id]?.grade : ""}
                                       onChange={(e) =>
                                         handleCompositionGradeChange(
                                           student.id,
@@ -1380,105 +1481,120 @@ const TeacherGrades = () => {
                                 {new Date(grade.date).toLocaleDateString("fr-FR")}
                               </TableCell>
                               <TableCell>
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleEditGrade(grade)}>
-                                      <Edit2 className="w-4 h-4 mr-1" />
-                                      Modifier
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                      <DialogTitle>Modifier la note</DialogTitle>
-                                      <DialogDescription>
-                                        Modification de la note de {grade.student}
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    {selectedGrade && (
-                                      <div className="space-y-4">
-                                        <div>
-                                          <label className="text-sm font-medium mb-2 block">
-                                            Note /20
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            max="20"
-                                            step="0.5"
-                                            value={selectedGrade.grade}
-                                            onChange={(e) =>
-                                              setSelectedGrade({
-                                                ...selectedGrade,
-                                                grade: parseFloat(e.target.value),
-                                              })
-                                            }
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium mb-2 block">
-                                            Coefficient
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            value={selectedGrade.coefficient}
-                                            onChange={(e) =>
-                                              setSelectedGrade({
-                                                ...selectedGrade,
-                                                coefficient: parseInt(e.target.value),
-                                              })
-                                            }
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium mb-2 block">
-                                            Appréciation
-                                          </label>
-                                          <Input
-                                            value={selectedGrade.comment || ""}
-                                            onChange={(e) =>
-                                              setSelectedGrade({
-                                                ...selectedGrade,
-                                                comment: e.target.value,
-                                              })
-                                            }
-                                          />
-                                        </div>
-                                        <div className="flex gap-2 pt-4">
-                                          <DialogFooter>
-                                            <Button
-                                              variant="outline"
-                                              onClick={() => {
-                                                setSelectedGrade(null); // close the modal
-                                              }}>
-                                              Annuler
-                                            </Button>
-                                            <Button
-                                              onClick={handleUpdateGrade}
-                                              disabled={updateNoteMutation.isPending}>
-                                              {updateNoteMutation.isPending ? (
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                              ) : (
-                                                <Save className="w-4 h-4 mr-2" />
-                                              )}
-                                              Valider
-                                            </Button>
-                                          </DialogFooter>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </DialogContent>
-                                </Dialog>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditGrade(grade)}>
+                                  <Edit2 className="w-4 h-4 mr-1" />
+                                  Modifier
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
+
+                    {/* Modal de modification de note contrôlée */}
+                    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Modifier la note</DialogTitle>
+                          <DialogDescription>
+                            Modification de la note de {selectedGrade?.student}
+                          </DialogDescription>
+                        </DialogHeader>
+                        {selectedGrade && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Note /20
+                              </label>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.25"
+                                value={selectedGrade.grade ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "") {
+                                    setSelectedGrade({
+                                      ...selectedGrade,
+                                      grade: "",
+                                    });
+                                    return;
+                                  }
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 0 && num <= 20) {
+                                    setSelectedGrade({
+                                      ...selectedGrade,
+                                      grade: num,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Coefficient
+                              </label>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={selectedGrade.coefficient ?? 1}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setSelectedGrade({
+                                    ...selectedGrade,
+                                    coefficient: isNaN(val) ? 1 : val,
+                                  });
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Appréciation
+                              </label>
+                              <Input
+                                placeholder="Appréciation..."
+                                value={selectedGrade.comment || ""}
+                                onChange={(e) =>
+                                  setSelectedGrade({
+                                    ...selectedGrade,
+                                    comment: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <DialogFooter className="flex gap-2 pt-4">
+                              <Button
+                                variant="outline"
+                                type="button"
+                                onClick={() => {
+                                  setIsEditDialogOpen(false);
+                                  setSelectedGrade(null);
+                                }}>
+                                Annuler
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={handleUpdateGrade}
+                                disabled={updateNoteMutation.isPending}>
+                                {updateNoteMutation.isPending ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Save className="w-4 h-4 mr-2" />
+                                )}
+                                Valider
+                              </Button>
+                            </DialogFooter>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+
                     {filteredGrades.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
                         Aucune note trouvée avec les critères sélectionnés

@@ -254,7 +254,7 @@ export const useUpdateNote = () => {
       if (!schoolId) {
         throw new Error("School ID is not available.");
       }
-      const { data } = await httpClient.patch(`/api/schools/${schoolId}/notes/${id}`, updatedNote, {
+      const { data } = await httpClient.put(`/api/schools/${schoolId}/notes/${id}`, updatedNote, {
         headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
       });
       return data;
@@ -262,7 +262,7 @@ export const useUpdateNote = () => {
     onSuccess: () => {
       toast({
         title: "Succès",
-        description: "Note updated successfully.",
+        description: "Note modifiée avec succès.",
       });
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       queryClient.invalidateQueries({ queryKey: ["classe-average"] });
@@ -365,6 +365,7 @@ export function convertGrades(input: Note[]): GradeOutput[] {
         classeId: item.classeId,
         studentId: item.studentId,
         disciplineId: item.disciplineId,
+        semester: item.semester,
       },
     };
   });

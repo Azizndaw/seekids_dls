@@ -84,25 +84,44 @@ notes.post('/', async (c) => {
     const records = Array.isArray(body) ? body : [body];
     const inserted = [];
     for (const n of records) {
+        if (n.note !== undefined && (Number(n.note) < 0 || Number(n.note) > 20)) {
+            return c.json({ error: 'La note doit être comprise entre 0 et 20' }, 400);
+        }
         const id = crypto.randomUUID();
         await getDB(c).prepare(
             `INSERT INTO Note (id, classeId, type, devoir, note, date, appreciation, coefficient, disciplineId, studentId, professeurId, schoolId, semester, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))`
-        ).bind(id, n.classeId, n.type || 'NOTE', n.devoir ? 1 : 0, n.note, n.date, n.appreciation || null, n.coefficient || 1, n.disciplineId, n.studentId, n.professeurId, schoolId, n.semester || null).run();
+        ).bind(id, n.classeId, n.type || 'NOTE', n.devoir ? 1 : 0, n.note, n.date, n.appreciation || null, (n.disciplineId === 'c8f5176f-30ca-45ce-a937-420b1664572b' || n.disciplineId === '6793dee8-4253-4bdd-b403-488f327565d3') ? 1 : (n.coefficient || 1), n.disciplineId, n.studentId, n.professeurId, schoolId, n.semester || null).run();
         inserted.push({ id, ...n });
     }
     return c.json(inserted, 201);
 });
 
-// PUT /api/schools/:schoolId/notes/:noteId
-notes.put('/:noteId', async (c) => {
+// PUT & PATCH /api/schools/:schoolId/notes/:noteId
+const updateNoteHandler = async (c: any) => {
     const noteId = c.req.param('noteId');
     const body = await c.req.json();
+    if (body.note !== undefined && (Number(body.note) < 0 || Number(body.note) > 20)) {
+        return c.json({ error: 'La note doit être comprise entre 0 et 20' }, 400);
+    }
+    const existing: any = await getDB(c).prepare('SELECT * FROM Note WHERE id = ?').bind(noteId).first();
+    if (!existing) {
+        return c.json({ error: 'Note non trouvée' }, 404);
+    }
+    const noteVal = body.note !== undefined ? body.note : existing.note;
+    const appreciationVal = body.appreciation !== undefined ? body.appreciation : existing.appreciation;
+    const coefVal = body.coefficient !== undefined ? body.coefficient : existing.coefficient;
+    const typeVal = body.type !== undefined ? body.type : existing.type;
+    const semesterVal = body.semester !== undefined ? body.semester : existing.semester;
+
     await getDB(c).prepare(
         'UPDATE Note SET note = ?, appreciation = ?, coefficient = ?, type = ?, semester = ? WHERE id = ?'
-    ).bind(body.note, body.appreciation || null, body.coefficient || 1, body.type || 'NOTE', body.semester || null, noteId).run();
+    ).bind(noteVal, appreciationVal, coefVal, typeVal, semesterVal, noteId).run();
     return c.json({ message: 'Note mise à jour' });
-});
+};
+
+notes.put('/:noteId', updateNoteHandler);
+notes.patch('/:noteId', updateNoteHandler);
 
 // DELETE /api/schools/:schoolId/notes/:noteId
 notes.delete('/:noteId', async (c) => {
