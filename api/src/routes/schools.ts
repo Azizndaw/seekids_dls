@@ -369,16 +369,42 @@ schools.post('/:schoolId/attendance', async (c) => {
                 const dateStr = record.date ? new Date(record.date).toLocaleDateString('fr-FR') : 'Aujourd\'hui';
                 const actionStr = record.type === 'ABSCENCE' || record.type === 'ABSENCE' ? 'marqué(e) absent(e)' : 'marqué(e) en retard';
                 let subjectStr = '';
+                let discName = '';
                 if (record.disciplineId) {
                     try {
                         const disc: any = await db.prepare('SELECT name FROM Discipline WHERE id = ?').bind(record.disciplineId).first();
-                        if (disc?.name) subjectStr = ` en ${disc.name}`;
+                        if (disc?.name) discName = disc.name;
                     } catch (e) { }
                 }
-                const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr}${subjectStr} le ${dateStr}.`;
-                const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau || ''} ${studentInfo.className || ''}) a été ${actionStr}${subjectStr} le ${dateStr}.`;
+                if (!discName && senderId) {
+                    try {
+                        const teacherDisc: any = await db.prepare(`
+                            SELECT d.name FROM Discipline d
+                            INNER JOIN _TeacherDisciplines td ON td.B = d.id
+                            WHERE td.A = ?
+                            LIMIT 1
+                        `).bind(senderId).first();
+                        if (teacherDisc?.name) discName = teacherDisc.name;
+                    } catch (e) { }
+                }
+                if (discName) {
+                    subjectStr = ` en ${discName}`;
+                }
 
-                // Notify Parent
+                let teacherStr = '';
+                if (senderId) {
+                    try {
+                        const teacher: any = await db.prepare('SELECT nom, prenom FROM AppUser WHERE id = ?').bind(senderId).first();
+                        if (teacher) {
+                            teacherStr = ` par ${teacher.prenom ? teacher.prenom + ' ' : ''}${teacher.nom || ''}`.trimEnd();
+                        }
+                    } catch (e) { }
+                }
+
+                const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr}${subjectStr} le ${dateStr}.`;
+                const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau || ''} ${studentInfo.className || ''}) a été ${actionStr}${subjectStr}${teacherStr} le ${dateStr}.`;
+
+            // Notify Parent
                 if (studentInfo.parentId) {
                     try {
                         await db.prepare(
