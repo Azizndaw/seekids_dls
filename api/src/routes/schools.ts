@@ -107,12 +107,32 @@ schools.put('/:schoolId/teachers/:teacherId', async (c) => {
 schools.get('/:schoolId/students', async (c) => {
     const schoolId = c.req.param('schoolId');
     const { results } = await getDB(c).prepare(
-        `SELECT s.*, c.nom as classeName FROM Student s
+        `SELECT s.*, c.nom as classeName, c.niveau as classeNiveau FROM Student s
      LEFT JOIN Classe c ON s.classeId = c.id
      WHERE s.schoolId = ?
      ORDER BY s.nom`
     ).bind(schoolId).all();
-    return c.json(results);
+
+    // Attach attendance records (with the subject of the teacher who marked them)
+    const { results: attendanceRows } = await getDB(c).prepare(
+        `SELECT sa.*, d.name as disciplineName FROM StudentAttendance sa
+     INNER JOIN Student s ON sa.studentId = s.id
+     LEFT JOIN Discipline d ON sa.disciplineId = d.id
+     WHERE s.schoolId = ?
+     ORDER BY sa.date DESC`
+    ).bind(schoolId).all();
+    const byStudent: Record<string, any[]> = {};
+    for (const a of attendanceRows as any[]) {
+        (byStudent[a.studentId] ||= []).push({
+            ...a,
+            discipline: { id: a.disciplineId, name: a.disciplineName },
+        });
+    }
+
+    return c.json((results as any[]).map((s) => ({
+        ...s,
+        attendances: byStudent[s.id] || [],
+    })));
 });
 
 // POST /api/schools/:schoolId/students
@@ -142,13 +162,19 @@ schools.put('/:schoolId/students/:studentId', async (c) => {
         const studentId = c.req.param('studentId');
         const body = await c.req.json();
         const lieuNaissance = body.lieu_naissance || body.lieuOfBirth || 'Dakar';
-        const parentId = (body.parentId && body.parentId !== '-' && body.parentId !== '') ? body.parentId : null;
         const rawClasse = body.classeId || body.classe;
         const classeId = (rawClasse && rawClasse !== '-' && rawClasse !== '') ? rawClasse : null;
 
-        await getDB(c).prepare(
-            'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = COALESCE(?, dateOfBirth), lieu_naissance = ?, classeId = COALESCE(?, classeId), parentId = ? WHERE id = ?'
-        ).bind(body.nom, body.prenom, body.dateOfBirth || null, lieuNaissance, classeId, parentId, studentId).run();
+        if ('parentId' in body) {
+            const parentId = (body.parentId && body.parentId !== '-' && body.parentId !== '') ? body.parentId : null;
+            await getDB(c).prepare(
+                'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = COALESCE(?, dateOfBirth), lieu_naissance = ?, classeId = COALESCE(?, classeId), parentId = ? WHERE id = ?'
+            ).bind(body.nom, body.prenom, body.dateOfBirth || null, lieuNaissance, classeId, parentId, studentId).run();
+        } else {
+            await getDB(c).prepare(
+                'UPDATE Student SET nom = ?, prenom = ?, dateOfBirth = COALESCE(?, dateOfBirth), lieu_naissance = ?, classeId = COALESCE(?, classeId) WHERE id = ?'
+            ).bind(body.nom, body.prenom, body.dateOfBirth || null, lieuNaissance, classeId, studentId).run();
+        }
         return c.json({ message: 'Élève mis à jour' });
     } catch (err: any) {
         console.error('Error updating student:', err);
@@ -342,8 +368,15 @@ schools.post('/:schoolId/attendance', async (c) => {
             if (studentInfo && canNotify) {
                 const dateStr = record.date ? new Date(record.date).toLocaleDateString('fr-FR') : 'Aujourd\'hui';
                 const actionStr = record.type === 'ABSCENCE' || record.type === 'ABSENCE' ? 'marqué(e) absent(e)' : 'marqué(e) en retard';
-                const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr} le ${dateStr}.`;
-                const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau || ''} ${studentInfo.className || ''}) a été ${actionStr} le ${dateStr}.`;
+                let subjectStr = '';
+                if (record.disciplineId) {
+                    try {
+                        const disc: any = await db.prepare('SELECT name FROM Discipline WHERE id = ?').bind(record.disciplineId).first();
+                        if (disc?.name) subjectStr = ` en ${disc.name}`;
+                    } catch (e) { }
+                }
+                const content = `Votre enfant ${studentInfo.prenom} ${studentInfo.nom} a été ${actionStr}${subjectStr} le ${dateStr}.`;
+                const adminContent = `L'élève ${studentInfo.prenom} ${studentInfo.nom} (${studentInfo.classNiveau || ''} ${studentInfo.className || ''}) a été ${actionStr}${subjectStr} le ${dateStr}.`;
 
                 // Notify Parent
                 if (studentInfo.parentId) {

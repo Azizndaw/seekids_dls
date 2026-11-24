@@ -138,7 +138,10 @@ const AbsencesModal = ({ isOpen, onClose, absences, studentId, classId }: Absenc
           </DialogHeader>
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {absences.map((absence) => {
-              const isJustified = absence.reason?.trim().length <= 0;
+              // Une absence est considérée comme justifiée dès qu'un motif a été renseigné
+              const isJustified = (absence.reason?.trim().length ?? 0) > 0;
+              const subjectName =
+                absence.discipline?.name || (absence as any).disciplineName || "Non précisée";
 
               return (
                 <div
@@ -157,19 +160,22 @@ const AbsencesModal = ({ isOpen, onClose, absences, studentId, classId }: Absenc
                           ? "text-green-600 border-green-200 hover:bg-green-50"
                           : "text-orange-600 border-orange-200 hover:bg-orange-50"
                       }>
-                      {isJustified ? "Absence justifiée" : "Justifier"}
+                      {isJustified ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-1" /> Justification envoyée
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4 mr-1" /> Justifier
+                        </>
+                      )}
                     </Button>
                   </div>
 
                   <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
                     <div className="flex items-center space-x-2">
-                      <span className="font-medium">Matière:</span>
-                      <span>{(absence.discipline?.name || absence.disciplineName)}</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4" />
-                      <span>{absence.date}</span>
+                      <span className="font-medium">Matière :</span>
+                      <span>{subjectName}</span>
                     </div>
 
                     {isJustified && (

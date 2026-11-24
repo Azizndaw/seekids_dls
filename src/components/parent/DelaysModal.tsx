@@ -37,11 +37,14 @@ const DelaysModal = ({ isOpen, onClose, delays }: DelaysModalProps) => {
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
                   <span className="font-medium">Matière :</span>
-                  <span>{(delay.discipline?.name || delay.disciplineName)}</span>
+                  <span>{delay.discipline?.name || (delay as any).disciplineName || "Non précisée"}</span>
                 </div>
               </div>
             </div>
           ))}
+          {delays.length === 0 && (
+            <div className="text-center py-8 text-gray-500">Aucun retard enregistré.</div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

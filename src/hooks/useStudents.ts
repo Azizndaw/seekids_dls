@@ -12,6 +12,8 @@ interface UpdateStudentBodyRequest {
   abscence: number;
   retards: number;
   moyenne: number;
+  parentId?: string;
+  classeId?: string;
 }
 
 export const useUpdateStudent = () => {
@@ -23,7 +25,7 @@ export const useUpdateStudent = () => {
         throw new Error("Utilisateur non connecté ou école non définie");
       }
 
-      const student = {
+      const student: any = {
         nom: userData.nom,
         prenom: userData.prenom,
         dateOfBirth: userData.dateOfBirth,
@@ -31,6 +33,8 @@ export const useUpdateStudent = () => {
         retards: userData.retards,
         moyenne: userData.moyenne,
       };
+      if (userData.parentId !== undefined) student.parentId = userData.parentId;
+      if (userData.classeId !== undefined) student.classeId = userData.classeId;
 
       try {
         const accessToken = localStorage.getItem("accessToken");
@@ -208,6 +212,7 @@ export const useDeleteStudentAttendance = () => {
       // Invalidate cache for attendance list and class average
       queryClient.invalidateQueries({ queryKey: ["school-attendances"] });
       queryClient.invalidateQueries({ queryKey: ["classe-average"] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
     },
 
     onError: (error: any) => {
@@ -265,6 +270,8 @@ export const useJustifyAttendance = () => {
       queryClient.invalidateQueries({ queryKey: ["school-attendances"] });
       queryClient.invalidateQueries({ queryKey: ["classe-average"] });
       queryClient.invalidateQueries({ queryKey: ["student-details"] }); // Assuming this key exists for parent view
+      queryClient.invalidateQueries({ queryKey: ["parent"] }); // Parent dashboard (children + attendances)
+      queryClient.invalidateQueries({ queryKey: ["students"] }); // Admin justification requests
     },
 
     onError: (error: any) => {

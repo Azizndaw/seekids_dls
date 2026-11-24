@@ -49,8 +49,11 @@ export const JustificationRequestsModal = () => {
             const item = {
               ...att,
               studentName: `${student.prenom} ${student.nom}`,
-              className: student.classe?.nom,
+              className:
+                student.classe?.nom ||
+                [(student as any).classeNiveau, (student as any).classeName].filter(Boolean).join(" "),
               studentId: student.id,
+              subjectName: att.discipline?.name || att.disciplineName || "",
             };
 
             if (attDate > today) {
@@ -99,10 +102,18 @@ export const JustificationRequestsModal = () => {
                         {item.className}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 flex-wrap">
                       <CalendarDays className="w-3 h-3" />
-                      {new Date(item.date).toLocaleDateString()}
-                      {item.course && <span>• {item.course}</span>}
+                      {new Date(item.date).toLocaleDateString("fr-FR")}
+                      <Badge
+                        className={`text-[10px] h-5 ${item.type === "RETARD" ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800"}`}>
+                        {item.type === "RETARD" ? "Retard" : "Absence"}
+                      </Badge>
+                      {item.subjectName && (
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          • Matière : {item.subjectName}
+                        </span>
+                      )}
                     </div>
                     <div className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-100 dark:border-gray-700 text-xs italic text-gray-600 dark:text-gray-300">
                       "{item.reason}"

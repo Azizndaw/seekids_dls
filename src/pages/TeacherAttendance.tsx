@@ -263,6 +263,8 @@ const TeacherAttendance = () => {
             dateOfBirth: student.dateOfBirth || new Date().toISOString(),
             retards: student.retards || 0,
             id: student.id,
+            parentId: student.parentId,
+            classeId: student.classeId,
           });
 
           if (socket) {
@@ -298,6 +300,8 @@ const TeacherAttendance = () => {
             dateOfBirth: student.dateOfBirth || new Date().toISOString(),
             retards: (student.retards ?? 0) + 1,
             id: student.id,
+            parentId: student.parentId,
+            classeId: student.classeId,
           });
 
           if (socket) {

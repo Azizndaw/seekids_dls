@@ -565,8 +565,7 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
                               <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Type</TableHead>
-                                <TableHead>Cours</TableHead>
-                                <TableHead>Heure</TableHead>
+                                <TableHead>Matière</TableHead>
                                 <TableHead>Statut</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
@@ -593,8 +592,14 @@ const ClassDetailsModal = ({ isOpen, onClose, className }: ClassDetailsModalProp
                                     </Badge>
                                   </TableCell>
 
-                                  <TableCell>{record.course}</TableCell>
-                                  <TableCell>{record.date}</TableCell>
+                                  <TableCell>{record.discipline?.name || record.disciplineName || record.course || "-"}</TableCell>
+                                  <TableCell>
+                                    {record.reason?.trim() ? (
+                                      <span className="text-green-700" title={record.reason}>Justifié</span>
+                                    ) : (
+                                      <span className="text-gray-500">Non justifié</span>
+                                    )}
+                                  </TableCell>
 
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">

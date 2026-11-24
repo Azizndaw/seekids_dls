@@ -378,6 +378,29 @@ auth.get('/me/role/:role', async (c) => {
             .bind(user.userId, fullUser.id, schoolIdVal, phonePattern, phonePattern, emailVal, emailVal)
             .all();
         children = results;
+
+        // Attach attendance records (with the subject of the teacher who marked them)
+        if (children.length > 0) {
+            const ids = children.map((ch: any) => ch.id);
+            const placeholders = ids.map(() => '?').join(',');
+            const { results: attendanceRows } = await getDB(c)
+                .prepare(
+                    `SELECT sa.*, d.name as disciplineName FROM StudentAttendance sa
+                     LEFT JOIN Discipline d ON sa.disciplineId = d.id
+                     WHERE sa.studentId IN (${placeholders})
+                     ORDER BY sa.date DESC`
+                )
+                .bind(...ids)
+                .all();
+            const byStudent: Record<string, any[]> = {};
+            for (const a of attendanceRows as any[]) {
+                (byStudent[a.studentId] ||= []).push({
+                    ...a,
+                    discipline: { id: a.disciplineId, name: a.disciplineName },
+                });
+            }
+            children = children.map((ch: any) => ({ ...ch, attendances: byStudent[ch.id] || [] }));
+        }
     } else if (userRole === "TEACHER") {
         const { results } = await getDB(c)
             .prepare(
