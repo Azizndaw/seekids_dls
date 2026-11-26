@@ -161,8 +161,12 @@ const TeacherAttendanceSheet = ({ subjects = [], classes }: TeacherAttendanceShe
     // - Entre 120 min et 180 min (ex: 2h20) -> 3 séances
     // - Au-delà (ex: 3h20 / 200 min) -> 4 séances
     let calculatedSessions = 1;
-    if (durationMinutes > 175) {
-      calculatedSessions = Math.round(durationMinutes / 50);
+    if (durationMinutes > 260) {
+      calculatedSessions = Math.round(durationMinutes / 45);
+    } else if (durationMinutes > 215) {
+      calculatedSessions = 5;
+    } else if (durationMinutes > 155) {
+      calculatedSessions = 4;
     } else if (durationMinutes > 115) {
       calculatedSessions = 3;
     } else if (durationMinutes > 55) {

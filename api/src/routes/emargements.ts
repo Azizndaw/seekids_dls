@@ -127,8 +127,8 @@ emargements.put('/:emargementId', async (c) => {
     const emargementId = c.req.param('emargementId');
     const body = await c.req.json();
     await getDB(c).prepare(
-        'UPDATE Emargement SET debut = ?, fin = ?, content = ?, additionalInfo = ? WHERE id = ?'
-    ).bind(body.debut, body.fin, body.content || '', body.additionalInfo || null, emargementId).run();
+        'UPDATE Emargement SET debut = ?, fin = ?, content = ?, additionalInfo = ?, seanceCounter = COALESCE(?, seanceCounter) WHERE id = ?'
+    ).bind(body.debut, body.fin, body.content || '', body.additionalInfo || null, body.seanceCounter ?? null, emargementId).run();
     return c.json({ message: 'Émargement mis à jour' });
 });
 

@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { TeacherScheduleSummary } from "./teacherSchedulePayroll";
 
 export interface AttendanceRecord {
     id: string;
@@ -24,6 +25,7 @@ const getRateForClass = (classe: string) => {
     const isExam =
         c.includes("terminal l2") ||
         c.includes("terminal s2") ||
+        c.includes("terminal") ||
         c.includes("tl2") ||
         c.includes("ts2") ||
         c.startsWith("3") ||
@@ -40,23 +42,39 @@ const formatCurrency = (num: number) => {
     return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " CFA";
 };
 
+export interface SchedulePayrollReportData {
+    teachers: TeacherScheduleSummary[];
+    periodLabel?: string;
+    totals: {
+        weeklySessions: number;
+        weeklyHours: number;
+        weeklyPayment: number;
+        monthlySessions4W: number;
+        monthlyHours4W: number;
+        monthlyPayment4W: number;
+        calendarSessions: number;
+        calendarHours: number;
+        calendarPayment: number;
+    };
+    hasSpecificMonth?: boolean;
+}
+
 export const generateTeacherAttendanceReport = (
     records: AttendanceRecord[],
     teacherName: string,
     monthLabel: string,
     schoolName: string,
     logoUrl: string,
-    stats: { totalHours: number; totalSessions: number; totalPayment: number }
+    stats: { totalHours: number; totalSessions: number; totalPayment: number },
+    schedulePayroll?: SchedulePayrollReportData
 ) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Check if we have multiple teachers in the records
-    const uniqueTeachers = [...new Set(records.map(r => r.teacherName))];
-    const isMultiTeacher = uniqueTeachers.length > 1 || teacherName === "Tous les enseignants";
+    const uniqueTeachersFromRecords = [...new Set(records.map(r => r.teacherName))];
+    const isMultiTeacher = uniqueTeachersFromRecords.length > 1 || teacherName === "Tous les enseignants";
 
     // --- Header ---
-    // Logo de l'école
     if (logoUrl) {
         try {
             doc.addImage(logoUrl, "PNG", 15, 8, 25, 25);
@@ -83,7 +101,7 @@ export const generateTeacherAttendanceReport = (
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Année Scolaire: 2025 - 2026`, pageWidth - 15, 15, { align: "right" });
+    doc.text(`Année Scolaire: 2026 - 2027`, pageWidth - 15, 15, { align: "right" });
     doc.text(`Date de génération: ${new Date().toLocaleDateString("fr-FR")}`, pageWidth - 15, 20, { align: "right" });
 
     // --- Title ---
@@ -103,34 +121,77 @@ export const generateTeacherAttendanceReport = (
     doc.setFont("helvetica", "bold");
     doc.text(`Période:`, 15, 62);
     doc.setFont("helvetica", "normal");
-    doc.text(monthLabel, 45, 62);
+    doc.text(
+        schedulePayroll?.periodLabel ? `${monthLabel} (${schedulePayroll.periodLabel})` : monthLabel,
+        45,
+        62
+    );
 
     // --- Stats Box ---
+    const boxHeight = schedulePayroll ? 28 : 22;
     doc.setFillColor(245, 245, 245);
-    doc.rect(15, 70, pageWidth - 30, 25, "F");
+    doc.rect(15, 68, pageWidth - 30, boxHeight, "F");
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.text("RÉSUMÉ GLOBAL", 20, 76);
+    doc.text("RÉSUMÉ GLOBAL", 20, 74);
 
     doc.setFont("helvetica", "normal");
-    doc.text(`Séances: ${stats.totalSessions}`, 20, 84);
-    doc.text(`Heures totales: ${stats.totalHours.toFixed(1)}h`, 70, 84);
+    doc.text(`Séances émargées: ${stats.totalSessions}`, 20, 82);
+    doc.text(`Heures émargées: ${stats.totalHours.toFixed(1)}h`, 72, 82);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(41, 128, 185);
-    doc.text(`MONTANT TOTAL: ${formatCurrency(stats.totalPayment)}`, 130, 84);
+    doc.text(`MONTANT ÉMARGÉ: ${formatCurrency(stats.totalPayment)}`, 125, 82);
     doc.setTextColor(0, 0, 0);
 
-    let currentY = 100;
+    if (schedulePayroll) {
+        const expectedSessions = schedulePayroll.hasSpecificMonth
+            ? schedulePayroll.totals.calendarSessions
+            : schedulePayroll.totals.monthlySessions4W;
+        const expectedHours = schedulePayroll.hasSpecificMonth
+            ? schedulePayroll.totals.calendarHours
+            : schedulePayroll.totals.monthlyHours4W;
+        const expectedPayment = schedulePayroll.hasSpecificMonth
+            ? schedulePayroll.totals.calendarPayment
+            : schedulePayroll.totals.monthlyPayment4W;
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+            `Prévu selon planning (sans absence): ${expectedSessions} séances (${expectedHours.toFixed(1)}h)`,
+            20,
+            90
+        );
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(16, 124, 65);
+        doc.text(`PRÉVISION SANS ABSENCE: ${formatCurrency(expectedPayment)}`, 120, 90);
+        doc.setTextColor(0, 0, 0);
+    }
+
+    let currentY = 68 + boxHeight + 8;
 
     // --- Multi-Teacher Summary Table ---
     if (isMultiTeacher) {
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
-        doc.text("RÉCAPITULATIF PAR ENSEIGNANT", 15, currentY);
+        doc.text("RÉCAPITULATIF PAR ENSEIGNANT (PLANNING SANS ABSENCE VS ÉMARGÉ)", 15, currentY);
 
-        const teacherSummaries = uniqueTeachers.map(name => {
+        const scheduleMap = new Map<string, TeacherScheduleSummary>();
+        if (schedulePayroll?.teachers) {
+            for (const t of schedulePayroll.teachers) {
+                scheduleMap.set(t.teacherName, t);
+            }
+        }
+
+        const allTeacherNames = Array.from(
+            new Set([
+                ...uniqueTeachersFromRecords,
+                ...(schedulePayroll?.teachers.map(t => t.teacherName) || []),
+            ])
+        ).sort((a, b) => a.localeCompare(b));
+
+        const teacherSummaries = allTeacherNames.map(name => {
             const teacherRecords = records.filter(r => r.teacherName === name);
             const tSessions = teacherRecords.reduce((sum, r) => sum + (r.sessionCount || 0), 0);
             const tHours = tSessions * HOUR_FACTOR;
@@ -143,16 +204,40 @@ export const generateTeacherAttendanceReport = (
                 const rate = getRateForClass(r.class);
                 return sum + hours * rate;
             }, 0);
-            return [name, tSessions, `${tHours.toFixed(1)}h`, formatCurrency(tPayment)];
+
+            const sched = scheduleMap.get(name);
+            const expSessions = sched
+                ? schedulePayroll?.hasSpecificMonth
+                    ? sched.calendarSessions
+                    : sched.monthlySessions4W
+                : 0;
+            const expHours = sched
+                ? schedulePayroll?.hasSpecificMonth
+                    ? sched.calendarHours
+                    : sched.monthlyHours4W
+                : 0;
+            const expPay = sched
+                ? schedulePayroll?.hasSpecificMonth
+                    ? sched.calendarPayment
+                    : sched.monthlyPayment4W
+                : 0;
+
+            return [
+                name,
+                sched ? `${expSessions} s. (${expHours.toFixed(1)}h)` : "-",
+                sched ? formatCurrency(expPay) : "-",
+                `${tSessions} s. (${tHours.toFixed(1)}h)`,
+                formatCurrency(tPayment),
+            ];
         });
 
         autoTable(doc, {
             startY: currentY + 5,
-            head: [["Enseignant", "Séances", "Heures", "Montant"]],
+            head: [["Enseignant", "Séances Prévues", "Prévision Sans Absence", "Émargé", "Montant Émargé"]],
             body: teacherSummaries,
             theme: "striped",
             headStyles: { fillColor: [52, 73, 94], textColor: 255 },
-            styles: { fontSize: 9 },
+            styles: { fontSize: 8.5 },
             margin: { left: 15, right: 15 }
         });
 
@@ -172,9 +257,7 @@ export const generateTeacherAttendanceReport = (
         const sessions = r.sessionCount !== undefined ? r.sessionCount : 1;
         const computedHours = sessions * HOUR_FACTOR;
         const rate = getRateForClass(r.class);
-        const isTeacherNdaw = isNdaw(r.teacherName || teacherName);
-        // Pour M. Ndaw: affichage visible à 2000 CFA par séance, calcul réel à 4000 CFA
-        const displayAmount = isTeacherNdaw ? sessions * 2000 : computedHours * rate;
+        const displayAmount = computedHours * rate;
 
         if (isMultiTeacher) {
             return [
