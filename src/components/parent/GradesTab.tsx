@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -12,9 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useSchoolLogo } from "@/hooks/useSchoolLogo";
 import { useGetClasseAverage } from "@/hooks/useAverage";
-import { generateClassGradeReport } from "@/utils/generateClassGradeReport";
 import { getMonthNameFromDate } from "@/utils/gradeUtils";
 
 interface Grade {
@@ -33,19 +29,9 @@ interface GradesTabProps {
   studentId?: string;
 }
 
-const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
-  const logo = useSchoolLogo();
-  const { data: classeReport, isLoading: isLoadingReport } = useGetClasseAverage(classeId || "");
+const GradesTab = ({ grades, classeId }: GradesTabProps) => {
+  const { data: classeReport } = useGetClasseAverage(classeId || "");
   const [selectedSemester, setSelectedSemester] = useState("Semestre 1");
-
-  const handleDownloadReport = () => {
-    if (classeReport && studentId) {
-      generateClassGradeReport(classeReport, logo, {
-        studentId,
-        role: "parent",
-      });
-    }
-  };
 
   const filteredGrades = grades.filter((g) => {
     if (!g.semester) return true; // Show all if no semester is specified (fallback)
@@ -87,8 +73,8 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
   };
 
   // Filter months that actually have data
-  const monthsWithData = allMonths.filter(month => {
-    return subjects.some(subject => getGradesForMonth(subject, month).length > 0);
+  const monthsWithData = allMonths.filter((month) => {
+    return subjects.some((subject) => getGradesForMonth(subject, month).length > 0);
   });
 
   return (
@@ -98,7 +84,10 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
           <CardTitle className="text-gray-900 dark:text-white flex items-center gap-3">
             Bulletins de notes
             {classeReport?.average && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">
+              <Badge
+                variant="secondary"
+                className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200"
+              >
                 Moyenne Classe: {classeReport.average}/20
               </Badge>
             )}
@@ -115,20 +104,6 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
             </TabsList>
           </Tabs>
         </div>
-        {classeId && studentId && (
-          <Button
-            onClick={handleDownloadReport}
-            disabled={!classeReport || isLoadingReport}
-            variant="outline"
-            size="sm">
-            {isLoadingReport ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            Télécharger Carnet
-          </Button>
-        )}
       </CardHeader>
       <CardContent>
         {filteredGrades.length === 0 ? (
@@ -146,7 +121,10 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
                     Matière
                   </TableHead>
                   {monthsWithData.map((month) => (
-                    <TableHead key={month} className="text-center min-w-[100px] font-semibold text-gray-700 dark:text-gray-300">
+                    <TableHead
+                      key={month}
+                      className="text-center min-w-[100px] font-semibold text-gray-700 dark:text-gray-300"
+                    >
                       {month}
                     </TableHead>
                   ))}
@@ -169,11 +147,14 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
                             {monthGrades.map((g, idx) => (
                               <div
                                 key={idx}
-                                className={`flex flex-col items-center justify-center min-w-[2rem] p-1 rounded border ${g.grade >= 10
-                                  ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400"
-                                  : "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
-                                  }`}
-                                title={`Date: ${g.date}\nCoef: ${g.coefficient}\n${g.appreciation ? 'Appréciation: ' + g.appreciation : ''}`}
+                                className={`flex flex-col items-center justify-center min-w-[2rem] p-1 rounded border ${
+                                  g.grade >= 10
+                                    ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400"
+                                    : "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+                                }`}
+                                title={`Date: ${g.date}\nCoef: ${g.coefficient}\n${
+                                  g.appreciation ? "Appréciation: " + g.appreciation : ""
+                                }`}
                               >
                                 <span className="text-sm font-bold">{g.grade}</span>
                                 <span className="text-[10px] opacity-70">c{g.coefficient}</span>
@@ -188,11 +169,14 @@ const GradesTab = ({ grades, classeId, studentId }: GradesTabProps) => {
                         {getCompositionGrades(subject).map((g, idx) => (
                           <div
                             key={idx}
-                            className={`flex flex-col items-center justify-center min-w-[2.25rem] p-1 rounded border ${g.grade >= 10
-                              ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-300"
-                              : "bg-red-100 border-red-300 text-red-800 dark:bg-red-900/40 dark:border-red-700 dark:text-red-300"
-                              }`}
-                            title={`Date: ${g.date}\nCoef: ${g.coefficient}\nComposition\n${g.appreciation ? 'Appréciation: ' + g.appreciation : ''}`}
+                            className={`flex flex-col items-center justify-center min-w-[2.25rem] p-1 rounded border ${
+                              g.grade >= 10
+                                ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-300"
+                                : "bg-red-100 border-red-300 text-red-800 dark:bg-red-900/40 dark:border-red-700 dark:text-red-300"
+                            }`}
+                            title={`Date: ${g.date}\nCoef: ${g.coefficient}\nComposition\n${
+                              g.appreciation ? "Appréciation: " + g.appreciation : ""
+                            }`}
                           >
                             <span className="text-base font-extrabold">{g.grade}</span>
                             <span className="text-[10px] opacity-70">c{g.coefficient}</span>
